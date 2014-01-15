@@ -1,4 +1,5 @@
-####Script to append GIS attributes such as slope and elevation to the file with site geolocations.
+####Script to append GIS attributes such as slope and elevation to the file with 
+####microclimate sensor geolocations.
 ####author: Ian Breckheimer
 ####date: 14 January 2014
 
