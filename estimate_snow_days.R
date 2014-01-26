@@ -51,15 +51,17 @@ system.time({
     ## READ IN THE DATA FILES FOR EACH TEMPERATURE SENSOR
     
     # For PC
-    file.directory <- "C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Data - HOBO Spring 2013"
+    file.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/compiled"
     setwd(file.directory)
-    files <- list.files()  # the data files for each temperature sensor to be analyzed
+    files <- list.files(pattern=".csv$")  # the data files for each temperature sensor to be analyzed
+    meta <- read.csv("metadata.txt")
+    
     # calib.file <- read.csv('C:/Users/Steve/Dropbox/MORA Data & Logistics/MORA
     # CleanData/Microclimate_working/HoboIbuttonDatabase.csv', na.strings=c('', 'n/a')) # Import calibration file.  Replace
     # blank and n/a values with NA's
     
-    figure.directory <- "C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Figures - Soil temp and snow cover"
-    output.directory <- "C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings"
+    figure.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/figs"
+    output.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/processed/"
     
     # # For MAC file.directory <- '~/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Data - HOBO Spring 2013'
     # setwd(file.directory) files <- list.files() # the data files for each temperature sensor to be analyzed # calib.file <-
@@ -67,10 +69,6 @@ system.time({
     # na.strings=c('', 'n/a')) # Import calibration file.  Replace blank and n/a values with NA's # figure.directory <-
     # 'C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Figures - Soil temp and snow cover' #
     # output.directory <- 'C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings'
-    
-    
-    
-    
     
     calibration <- c()
     calibration.type <- c()
@@ -85,7 +83,7 @@ system.time({
         
         setwd(file.directory)
         d <- read.csv(files[k])
-        d <- d[complete.cases(d[, 1:6]), ]
+        d <- d[complete.cases(d[, 1:5]), ]
         
         # Name the columns
         names(d)[1] <- "YEAR"
@@ -159,13 +157,10 @@ system.time({
         MaxThresh <- 2  # the threshold maximum temperature (i.e. if the max temperature on a given day exceeded MaxThresh, snow probably absent)
         
         # Calculate maximum daily temperature for each date
-        maxT <- ave(d$TEMP.calib, d$DOY, FUN = function(x) {
-            max(x)
-        })
+        maxT <- ave(d$TEMP.calib, d$Date, FUN = function(x) {max(x)})
         
-        max.d <- data.frame(DOY, maxT)
+        max.d <- data.frame(d$Date, maxT)
         max.unique <- unique(max.d)
-        head(max.unique)
         
         d.unique$maxT <- max.unique$maxT
         

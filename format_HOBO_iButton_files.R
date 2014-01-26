@@ -9,56 +9,102 @@
 ## Values in the '#===#' box below need to be changed for each run.  Once these values are changed, select all text and run.
 
 
-# ============================================================================#
+#### ==================INPUTS======================================####
 
 ## give the year the data were collected, if necessary (will be appended to all processed file names)
-years <- c("-2012-13","-2011-12","-2011-12","-2010-11","-2010-11","-2009-10")  # if year is not a part of file name, run this line of code (but not the line below), giving the appropriate year designation, to append year to each file name
+# if year is not a part of file name, run this line of code (but not the line below), giving the appropriate year designation, to append year to each file name
 # year = '' # if year is a part of file name, run this line of code (but not the line above) - this option will ensure that
 # the year is not appended to processed file names
 
 ## name the working directories
 
-# name the working directory with the .csv files you want to process.  there shouldn't be any .csv files in the below
-# working directory that are not temperature sensor output files because the script will treat all .csv files as ibutton or
-# HOBO files. There can be other types of files in the below working directory, this script will ignore them.
+# name the working directories with the .csv files you want to process.
 input.WorkingDirectories <- c("~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2012-13",
-                             "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/ibuttondata2012",
-                             "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/HOBOdata2012",
-                             "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/dormant season",
-                             "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/growing season",
-                             "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2009-10/raw data")
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/ibuttondata2012",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/HOBOdata2012",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/dormant season",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/growing season",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2009-10/manipulated",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/hobodata2013",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/ibuttondata2012",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2012Summer",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2012Fall",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2011Summer",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2011Fall",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2010-06",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2009-09",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_iButton",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_HOBO/summerDownload",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_HOBO/springDownload",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2012",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2011-2012",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2010-2011",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2009-2010",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2008-2009",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SummerDownload_Clean",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SpringDownload_Clean",                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SummerDownload_Clean",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Spring-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Fall-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Spring-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2011/Fall-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2011/Spring-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Fall-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Spring-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Fall-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Spring-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2013",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2011",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2010",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2009")
 
 # name the working directory where you want to put the processed .csv files
 output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/compiled"
 
 # prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
-output.Prefixes <- c(rep("FordTheo",6))
-# ============================================================================#
-
-
+output.Prefixes <- c(rep("FordTheo",6),
+                     rep("Ettinger",8),
+                     rep("JHRL",25))
 
 ## set the working directory to the folder with all the raw .csv files you wish to process (this folder can contain other
 ## file types but should contain .csv files that are not HOBO output files)
 setwd(input.WorkingDirectories[1])
 
+
+#### ==================FUNCTIONS======================================####
+
 ## write a function for modifying the .csv files
-modiFile <- function(CSV_FILE) {
+formatMicro <- function(CSV_FILE) {
     print(paste("Now processing file ",CSV_FILE))
-    header <- scan(CSV_FILE,nlines=30,what='raw')  # read in the beginning of the file
+    header <- scan(CSV_FILE,nlines=30,what='raw',quiet=TRUE)  # read in the beginning of the file
     
     ## Tests to see what format the file is in.
-    is.formatted <- header[1] %in% c("year,month,day,hour,temp,light",
-                                     "year,month,day,hour,temp",
-                                     "YEAR,MONTH,DAY,HOUR,TEMP,LIGHT",
-                                     "YEAR,MONTH,DAY,HOUR,TEMP")
+    is.formatted <- tolower(header[1]) %in% c("year,month,day,hour,temp,light",
+                                              "year,month,day,hour,temperature",
+                                              "year,month,day,hour,temp",
+                                              "year,month,day,hour,temp,",
+                                              "year,month,day,hour,temp,,",
+                                              "year,month,day,hour,temp,,,",
+                                              "year,month,day,hour,temp,,,,",
+                                              "year,month,day ,hour,temp",
+                                              "year,month,day,hour,value",
+                                              "year,month,day,hour,temp,light,,",
+                                              "year,month,day,hour,temp,light,,,",
+                                              "year,month,day,hour,temp,light,,,,",
+                                              "year,month,day,hour,temp,light,,,,,,,",
+                                              "year,month,day,hour,temp,intensity",
+                                              "year,month,day,hour,temp,temp")
+                                              
     is.datetime <- unlist(strsplit(header[1],split=","))[1] == "Date/Time"
+    
     is.ibutton <- any(grepl("iButton", header))  # determine whether the sensor is an ibutton or not
-    is.hobo <- any(grepl("GMT", header)) && any(grepl("File", header)) && any(grepl("Time", header))
+    is.hobo <- any(grepl("File", header)) && any(grepl("Time", header)) && any(grepl("End", header))
     if (is.formatted == TRUE){
       file <- read.table(CSV_FILE,skip=1,sep=",")
+      DateTime <- paste(file[,2],"/",file[,3],"/",file[,1]," ",file[,4],":00",sep="")
+      file <- cbind(DateTime,file[-c(1:4)],NA)
     }
     else if (is.datetime) {
-      # do this if the ibutton is model DS1922L
       file <- read.table(CSV_FILE,skip=1,header=FALSE,sep=",")  # remove rows from the top of the data frame
     }
     else if (is.ibutton == TRUE) {   
@@ -102,7 +148,6 @@ modiFile <- function(CSV_FILE) {
             if (dim(file)[2] == 2) {
                 file = file
             }
-            
             if (dim(file)[2] == 3) {
                 file <- file[, -2]  # remove the second column (unit)
             }
@@ -117,56 +162,122 @@ modiFile <- function(CSV_FILE) {
       sample_split <- unlist(strsplit(sample,split=","))
       is.comma.del <- length(sample)!=length(sample_split)
       if(is.comma.del) {
-        file <- read.table(CSV_FILE, header = F, sep = ",",skip=2)  # read in the raw data .csv file (as comma delimited) as a dataframe
-      }else{
-        file <- read.table(CSV_FILE,header = F, sep="\t",skip=2)    # read in the raw data .csv file (as tab delimited) as a dataframe
+        file <- read.table(CSV_FILE, header = F, sep = ",",skip=2,fill=TRUE)  # read in the raw data .csv file (as comma delimited) as a dataframe
+      }
+      else{
+        file <- read.table(CSV_FILE,header = F, sep="\t",skip=2,fill=TRUE)    # read in the raw data .csv file (as tab delimited) as a dataframe
       }
       file <- file[,2:4]  # remove all columns except 2 and 3 (date/time and temperature)
     }  # end HOBO-specific procedure
-    names(file) <- c("DateTime", "Temperature", "Light")  # name the columns
-
-    # Converts date vector to separate columns for year,month,day,and hour.
-    dateTime <- strptime(file$DateTime, "%m/%d/%Y %H:%M")
-    YEAR <- as.numeric(strftime(dateTime,format="%Y"))
-    MONTH <- as.numeric(strftime(dateTime,format="%m"))
-    DAY <- as.numeric(strftime(dateTime,format="%d"))
-    HOUR <- as.numeric(strftime(dateTime,format="%H"))
-    TEMP <- as.numeric(file$Temperature)
-    file <- cbind(YEAR,MONTH,DAY,HOUR,TEMP)
+  else {
+    print(paste("Could not recognize the formatting of ",CSV_FILE))
+  }
+  
+  names(file) <- c("DateTime", "Temperature", "Light")  # name the columns
+  
+  # Attempts to extract the time-zone from the header.
+  if(any(grepl("GMT-07:00", header,fixed=T)) | any(grepl("PDT", header,fixed=T))){
+    tz <- "PDT"
+  }
+  else if(any(grepl("GMT-00:00", header,fixed=T))){
+    tz <- "GMT"
+  }
+  else{
+    tz <- "UNK"
+  }
+  
+  # Tests for a valid 4-digit year
+  valid_years <- 2007:2014
+  datestring <- strsplit(as.character(file$DateTime[1]),split=" ")[[1]][1]
+  yeartest <- function(x){any(grepl(as.character(x),datestring))}
+  valid.year <- any(sapply(valid_years,FUN=yeartest))
     
-    return(file)
+  # Converts date vector to separate columns for year,month,day,and hour.
+  if(valid.year){
+    dateTime <- strptime(file$DateTime, "%m/%d/%Y %H:%M")
+  }
+  else{
+    dateTime <- strptime(file$DateTime, "%m/%d/%y %H:%M")
+  }
+    
+  YEAR <- as.numeric(strftime(dateTime,format="%Y"))
+  MONTH <- as.numeric(strftime(dateTime,format="%m"))
+  DAY <- as.numeric(strftime(dateTime,format="%d"))
+  HOUR <- as.numeric(strftime(dateTime,format="%k"))
+  TEMP <- as.numeric(file$Temperature)
+  file <- cbind(YEAR,MONTH,DAY,HOUR,TEMP)
+  
+  # Extracts the range of dates in the file.
+  date_min <- min(dateTime,na.rm=T)
+  date_max <- max(dateTime,na.rm=T)
+  date_lab <- paste(strftime(date_min,format="%Y-%m"),strftime(date_max,format="%Y-%m"),sep="-")
+  
+  # Extracts the minimum and maximum temperature.
+  temp_max <- max(TEMP,na.rm=T)
+  temp_min <- min(TEMP,na.rm=T)
+    
+  # Extracts the number of measurements.
+  n_measurements <- length(na.omit(TEMP))
+
+  file_attrib <- list(data=file,
+                      filename=strsplit(CSV_FILE,split=".csv")[[1]],
+                      filepath=paste(getwd(),CSV_FILE,sep="/"),
+                      n_measurements=n_measurements,
+                      date_min=date_min,
+                      date_max=date_max,
+                      date_lab=date_lab,
+                      temp_min=temp_min,
+                      temp_max=temp_max,
+                      hobo=is.hobo,
+                      ibutton=is.ibutton,
+                      formatted=is.formatted,
+                      datetime=is.datetime,
+                      tz=tz)
+  
+  return(file_attrib)
 }
+
+
+#### ==================FILE PROCESSING==============================####
+
+##Checks to see how many input files there are.
+csv_all <- c()
+for (i in 1:length(input.WorkingDirectories)){
+  csv_files <- list.files(input.WorkingDirectories[i],pattern=".csv$")
+  csv_all <- c(csv_all,csv_files)
+}
+nfiles <- length(csv_all)
+print(paste("Now processing ",nfiles," microclimate files."))
+
+##Sets up a file counter.
+file_n <- 0
 
 for (i in 1:length(input.WorkingDirectories)){
   setwd(input.WorkingDirectories[i])
   print(paste("Now processing files in directory ",input.WorkingDirectories[i]))
   files <- list.files(".",pattern=".csv$") # lists all the .csv files in the working directory (!!! WARNING: DON'T INCLUDE '.csv' IN ANY FILE NAMES IN THE WORKING DIRECTORY, '.csv' SHOULD ONLY APPEAR AS A FILE EXTENSION !!!). This script thinks that any file with the string '.csv' in the file name is a .csv file
-  dfs <- lapply(X = files, FUN = modiFile)  # modify all .csv files in the working directory
-  
-  
-  ## append year to file names
-  
-  locns = strsplit(files, ".csv")
-  
-  appyear <- function(LOCNS) {
-      l <- LOCNS
-      sn <- as.character(c(l, years[i], ".csv"))
-      newlocn <- paste(sn, collapse = "")
-      return(newlocn)
-  }
-  
-  locations <- sapply(X = locns, FUN = appyear)
-  
+  dfs <- lapply(X = files, FUN = formatMicro)  # process all .csv files in the working directory into a list of lists.
   
   ## write the modified files as .csv files to an output folder
   
   # set the working directory to the folder that will collect the output files (should be empty prior to running this script)
   setwd(output.WorkingDirectory)
   
-  for (j in 1:length(locations)) {
-      x = dfs[[j]]
-      f = paste(output.Prefixes[i],locations[j],sep="-")
-      write.csv(x, file = f, row.names = FALSE)
+  for (j in 1:length(dfs)) {
+      datavals <- dfs[[j]]$data
+      in_name <- dfs[[j]]$filename
+      out_name <- paste(output.Prefixes[i],in_name,dfs[[j]]$date_lab,sep="_")
+      meta <- data.frame(out_filename=out_name,dfs[[j]][-1])
+      write.csv(datavals, file = paste(out_name,".csv",sep=""), row.names = FALSE)
+      # Writes the metadata
+      if (length(list.files(".",pattern="metadata.csv")) == 0){
+        write.table(meta,file="metadata.txt", sep=",",row.names = FALSE, append = FALSE) 
+      }
+      else{
+        write.table(meta,file="metadata.txt", sep=",",row.names = FALSE, col.names = FALSE, append = TRUE)
+      }
+      file_n <- file_n+1
+      print(paste("Completed processing file ",file_n," of ",nfiles))
   }
 }
 
