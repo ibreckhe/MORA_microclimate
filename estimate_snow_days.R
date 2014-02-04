@@ -51,7 +51,7 @@ system.time({
     ## READ IN THE DATA FILES FOR EACH TEMPERATURE SENSOR
     
     # For PC
-    file.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/compiled"
+    file.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled"
     setwd(file.directory)
     files <- list.files(pattern=".csv$")  # the data files for each temperature sensor to be analyzed
     meta <- read.csv("metadata.txt")
@@ -60,9 +60,9 @@ system.time({
     # CleanData/Microclimate_working/HoboIbuttonDatabase.csv', na.strings=c('', 'n/a')) # Import calibration file.  Replace
     # blank and n/a values with NA's
     
-    figure.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/figs"
-    output.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/processed/"
-    
+    figure.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/figs"
+    output.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/processed/"
+
     # # For MAC file.directory <- '~/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Data - HOBO Spring 2013'
     # setwd(file.directory) files <- list.files() # the data files for each temperature sensor to be analyzed # calib.file <-
     # read.csv('C:/Users/Steve/Dropbox/MORA Data & Logistics/MORA CleanData/Microclimate_working/HoboIbuttonDatabase.csv', #
@@ -96,8 +96,8 @@ system.time({
         
         # EXTRACT STAND INFO FROM FILENAME
         
-        stand[k] <- strsplit(files[k], "-")[[1]][1]
-        plot[k] <- strsplit(strsplit(files[k], "-S")[[1]][2], split = ".csv")[[1]][1]
+        stand[k] <- strsplit(files[k], "_")[[1]][2]
+        plot[k] <- strsplit(files[k], "_")[[1]][3]
         year[k] <- max(d$YEAR)
         
         
@@ -186,16 +186,18 @@ system.time({
         
         d.unique <- d.unique[2:(length(d.unique$DOY) - 1), ]  #removes the first and last days, so there aren't any incomplete dates
         
+        d.snow <- d.unique[d.unique$snow_cover==1,] #creates a subset of the data with snow days.
         
         ################################################ 
         
         
         ## SUMMARIZING
-        snow_appearance_date[k] <- as.character(d.unique$d.Date[1])  # first day when snow covered sensor
-        snow_disappearance_date[k] <- as.character(d.unique$d.Date[dim(d.unique)[1]])  # last day when snow covered sensor
+        snow_appearance_date[k] <- as.character(min(d.snow$d.Date))  # first day when snow covered sensor
+        snow_disappearance_date[k] <- as.character(max(d.snow$d.Date))  # last day when snow covered sensor
         snow_cover_duration[k] <- sum(d.unique$snow_cover)  #'snow cover duration' the total number of days with snow cover
         
         ################################################ 
+
         
         
         ## PLOT SOIL TEMPERATURE AND THE SNOW COVER ALGORITH OUTPUT TO MAKE SURE OUTPUT IS REASONABLE
@@ -235,16 +237,39 @@ system.time({
     }
     
     # Consolidate summarized results for each sensor into one data frame
-    x <- 1:length(files)
-    output <- data.frame(files[x], year[x], stand[x], plot[x], calibration[x], snow_appearance_date[x], snow_disappearance_date[x], 
-        snow_cover_duration[x])
+    output <- data.frame(files, 
+                         year, 
+                         stand, 
+                         plot, 
+                         calibration, 
+                         snow_appearance_date, 
+                         snow_disappearance_date,
+                         snow_cover_duration)
     
 })  #stop the clock
 
+##Match the snow cover information to the sensor metadata.
+out_merged <- merge(meta,output,by.x="out_filename",by.y="files",all.x=T)
 
+##Data quality flags:
+out_merged$flag_sensor_fail <- (as.Date(out_merged$snow_disappearance_date) - as.Date(out_merged$date_max)) > -2
+out_merged$flag_temp_high <- out_merged$temp_max > 50
+out_merged$flag_temp_low <- out_merged$temp_min < -30
+out_merged$flag_high_calib <- out_merged$calibration >= 2 | out_merged$calibration <= -2
+out_merged$flag_no_snow <- out_merged$snow_cover_duration <= 15
+out_merged$flagged <- with(out_merged, flag_sensor_fail | flag_temp_high | flag_temp_low | flag_high_calib | flag_no_snow)
 
+##Moves pdf graphics of flagged files to a new directory
+out_flagged <- out_merged[out_merged$flagged==TRUE,]
+flagged_pdfs <- sub(".csv",".pdf",out_flagged$out_filename)
+setwd(figure.directory)
+dir.create("./flagged")
+file.copy(flagged_pdfs,"./flagged")
+
+##subsets data for the unflagged files
+out_unflagged<- out_merged[out_merged$flagged==FALSE,]
 
 # Save output file
 setwd(output.directory)
-write.table(output, file = "Snow_cover_summary_13.csv", sep = ",", row.names = FALSE)
+write.table(out_unflagged, file = "Snow_cover_cleaned.txt", sep = ",", row.names = FALSE)
  

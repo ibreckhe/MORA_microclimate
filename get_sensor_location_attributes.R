@@ -1,12 +1,12 @@
-####Script to append GIS attributes such as slope and elevation to the file with 
-####microclimate sensor geolocations.
+####Script to merge sensor locations and environmental attributes with snow duration data.
 ####author: Ian Breckheimer
-####date: 14 January 2014
+####date: 2 February 2014
 
 ####Loads required packages
 library(raster)
 library(maptools)
 library(maps)
+library(ggplot2)
 
 ##Sets the working directory.
 setwd("~/code/MORA_microclimate")
@@ -21,8 +21,14 @@ env_titles <- c("Topographic Roughness","Canopy Ht. (m)","Canopy Cover (prop.)",
                 "Lidar Intensity","Pond-Stream Area (sq m)","Stream Distance (m)")
 names(env3) <- env_names
 
-##Reads in the coordinates.
-sensors <- read.csv("~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/sensor_locations.csv")
+##Computes aspect
+asp <- terrain(env3$elev, filename='~/GIS/MORA_aspect_3m.tiff', opt='aspect', unit='degrees', 
+            neighbors=8,overwrite=T)
+env3$asp <- asp
+
+##Reads in the coordinates of all of the microclimate sensors.
+setwd("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/cleaned/")
+sensors <- read.csv("sensor_locations_updated4.csv")
 coordinates(sensors) <- ~Long+Lat
 sensors@data$Long <- coordinates(sensors)[,1]
 sensors@data$Lat <- coordinates(sensors)[,2]
@@ -48,6 +54,70 @@ sensors_attrib@data$relev270 <- sensors_attrib@data$elev - relev270
 sensors_attrib@data$can_ht_30m <- extract(env3$can_ht,sensors_UTM,buffer=30,fun=mean)
 sensors_attrib@data$canopy_pct_30m <- extract(env3$can_pct,sensors_UTM,buffer=30,fun=mean)
 
+##Reads in the snow duration data and merges it with the coordinates.
+attrib <- sensors_attrib@data
+snow <- read.csv("Snow_duration_date_cleaned.csv")
+snow_coords <- merge(snow,attrib,all.x=TRUE,by.x="locname_standard",by.y="combined_name")
+
+##Computes heat load from slope and aspect data, equation from McCune and Dylan (2002)
+heat_ld <- function(lat,asp,slope){
+  ##Convert to radians
+  lat <- lat * (2*pi) / 360
+  asp <- asp * (2*pi) / 360
+  slope = slope * (2*pi) / 360;
+  
+  ##Compute folded aspect
+  a_fh <- abs(pi-abs(asp-(5*pi/4)))
+  
+  ##Fit parameters
+  cs <- c(0.339,0.808,0.0,0.196,0,0.482)
+  
+  hli <- cs[1] + (cs[2]*cos(lat)*cos(slope)) + (cs[3]*cos(a_fh)*sin(slope)*sin(lat)) + (cs[4]*sin(lat)*sin(slope)) + (cs[5]*sin(a_fh)*sin(slope)) + (cs[6]*cos(a_fh)*sin(slope))
+  return(hli)
+}
+
+snow_coords$heat_ld <- heat_ld(snow_coords$Lat,snow_coords$asp,snow_coords$slope)
+
+
+##Simplifies the output.
+snow_output <- with(snow_coords,data.frame(study=Study,
+                                           water_year=year,
+                                           site_name=site_name,
+                                           sensor_name=sitename_standard,
+                                           longitude=Long,
+                                           latitude=Lat,
+                                           elevation=elev,
+                                           snow_app_date=snow_appearance_date,
+                                           snow_dis_date=snow_disappearance_date,
+                                           snow_cover_days=snow_cover_duration,
+                                           canopy_pct=can_pct,
+                                           canopy_pct_30m=canopy_pct_30m,
+                                           stream_dist=stream_dist,
+                                           slope=slope,
+                                           aspect=asp,
+                                           srad=srad,
+                                           hld=heat_ld,
+                                           relev_30m=relev30))
+snow_output <- snow_output[complete.cases(snow_output),]
+
+##Gets rid of outlier
+out <- snow_output$elev>1500 & snow_output$snow_cover_days<150
+snow_output <- snow_output[-which(out),] 
+
+##Quick plots to check data.
+qplot(snow_cover_days,elevation,data=snow_output,facets=. ~ water_year,color=canopy_pct*100,xlim=c(0,365))+
+  geom_smooth(method = "lm", se=TRUE, color="black", formula = y~poly(x,2))+
+  labs(x="Snow Duration (Days)",
+       y="Elevation (m)",
+       color="Canopy\nCover (%)",
+       title="Water Year")+
+  theme_bw()
+
+##Preliminary models
+snowmod <- lm(snow_cover_days~poly(elevation,2)*water_year+canopy_pct+slope,data=snow_output)
+snowmod2 <- lmer(snow_cover_days~poly(elevation,2)*water_year+canopy_pct+slope+(1|site_name),data=snow_output)
+summary(snowmod)
+snow_output$resid <- snowmod$residuals
+
 ##Exports the data to csv.
-write.csv(sensors_attrib@data,
-          "~/Dropbox/EcoForecasting_SDD_Phenology/Data&Analysis/Microclimate/raw/sensor_locations_attrib.csv")
+write.csv(snow_output,"microclimate_snow_coords.csv")
