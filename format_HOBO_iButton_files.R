@@ -56,15 +56,18 @@ input.WorkingDirectories <- c("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&A
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2011",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2010",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2009")
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2009",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Jessica")
 
+                        
 # name the working directory where you want to put the processed .csv files
 output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled"
 
-# prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
+prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
 output.Prefixes <- c(rep("FordTheo",6),
                      rep("Ettinger",8),
-                     rep("JHRL",25))
+                     rep("JHRL",25),
+                      rep("Lundquist",1))
 
 ## set the working directory to the folder with all the raw .csv files you wish to process (this folder can contain other
 ## file types but should contain .csv files that are not HOBO output files)
@@ -96,7 +99,6 @@ formatMicro <- function(CSV_FILE) {
                                               "year,month,day,hour,temp,temp")
                                               
     is.datetime <- unlist(strsplit(header[1],split=","))[1] == "Date/Time"
-    
     is.ibutton <- any(grepl("iButton", header))  # determine whether the sensor is an ibutton or not
     is.hobo <- any(grepl("File", header)) && any(grepl("Time", header)) && any(grepl("End", header))
     if (is.formatted == TRUE){
@@ -105,7 +107,10 @@ formatMicro <- function(CSV_FILE) {
       file <- cbind(DateTime,file[-c(1:4)],NA)
     }
     else if (is.datetime) {
-      file <- read.table(CSV_FILE,skip=1,header=FALSE,sep=",")  # remove rows from the top of the data frame
+      table <- read.table(CSV_FILE,skip=1,header=FALSE,sep=",")  # remove rows from the top of the data frame
+      DateTime <- strptime(table[,1],format="%m/%d/%y %H:%M")
+      temp <- as.vector(table[,2])
+      file <- data.frame(DateTime,temp,light=NA)
     }
     else if (is.ibutton == TRUE) {   
         # do this if the sensor is an ibutton do this if the ibutton is model DS1921G
@@ -169,7 +174,7 @@ formatMicro <- function(CSV_FILE) {
       }
       file <- file[,2:4]  # remove all columns except 2 and 3 (date/time and temperature)
     }  # end HOBO-specific procedure
-  else {
+  else{
     print(paste("Could not recognize the formatting of ",CSV_FILE))
   }
   
@@ -193,10 +198,12 @@ formatMicro <- function(CSV_FILE) {
   valid.year <- any(sapply(valid_years,FUN=yeartest))
     
   # Converts date vector to separate columns for year,month,day,and hour.
-  if(valid.year){
-    dateTime <- strptime(file$DateTime, "%m/%d/%Y %H:%M")
+  if(class(file$DateTime)[1]=="POSIXct"){
+    dateTime <- file$DateTime
   }
-  else{
+  else if(valid.year) {
+    dateTime <- strptime(file$DateTime, "%m/%d/%Y %H:%M")
+  }else{
     dateTime <- strptime(file$DateTime, "%m/%d/%y %H:%M")
   }
     

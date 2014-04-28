@@ -21,14 +21,13 @@ env_titles <- c("Topographic Roughness","Canopy Ht. (m)","Canopy Cover (prop.)",
                 "Lidar Intensity","Pond-Stream Area (sq m)","Stream Distance (m)")
 names(env3) <- env_names
 
-##Computes aspect
-asp <- terrain(env3$elev, filename='~/GIS/MORA_aspect_3m.tiff', opt='aspect', unit='degrees', 
-            neighbors=8,overwrite=T)
-env3$asp <- asp
+##Imports aspect data.
+env3$asp <- raster('~/GIS/MORA_aspect_3m.tif')
+env3$tri <- raster('~/GIS/MORA_TRI_3m.tif')
 
 ##Reads in the coordinates of all of the microclimate sensors.
 setwd("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/cleaned/")
-sensors <- read.csv("sensor_locations_updated4.csv")
+sensors <- read.csv("sensor_locations_updated_2_12_2013.csv")
 coordinates(sensors) <- ~Long+Lat
 sensors@data$Long <- coordinates(sensors)[,1]
 sensors@data$Lat <- coordinates(sensors)[,2]
@@ -56,7 +55,7 @@ sensors_attrib@data$canopy_pct_30m <- extract(env3$can_pct,sensors_UTM,buffer=30
 
 ##Reads in the snow duration data and merges it with the coordinates.
 attrib <- sensors_attrib@data
-snow <- read.csv("Snow_duration_date_cleaned.csv")
+snow <- read.csv("Snow_cover_meta_final_2_6_2013.csv",sep=",",header=T)
 snow_coords <- merge(snow,attrib,all.x=TRUE,by.x="locname_standard",by.y="combined_name")
 
 ##Computes heat load from slope and aspect data, equation from McCune and Dylan (2002)
@@ -77,35 +76,39 @@ heat_ld <- function(lat,asp,slope){
 }
 
 snow_coords$heat_ld <- heat_ld(snow_coords$Lat,snow_coords$asp,snow_coords$slope)
-
+diss_days <- strptime(as.character(snow_coords$snow_disappearance_date),format="%m/%d/%y")
+snow_coords$snow_diss_DOY <- as.numeric(strftime(diss_days,format="%j"))
 
 ##Simplifies the output.
 snow_output <- with(snow_coords,data.frame(study=Study,
                                            water_year=year,
                                            site_name=site_name,
-                                           sensor_name=sitename_standard,
+                                           sensor_name=locname_standard,
                                            longitude=Long,
                                            latitude=Lat,
+                                           X_UTM=X_UTM,
+                                           Y_UTM=Y_UTM,
                                            elevation=elev,
                                            snow_app_date=snow_appearance_date,
                                            snow_dis_date=snow_disappearance_date,
                                            snow_cover_days=snow_cover_duration,
+                                           snow_diss_DOY=snow_diss_DOY,
                                            canopy_pct=can_pct,
                                            canopy_pct_30m=canopy_pct_30m,
+                                           relev_30m=relev30,
+                                           relev_90m=relev90,
+                                           relev_270m=relev270,
+                                           tri=tri,
                                            stream_dist=stream_dist,
                                            slope=slope,
                                            aspect=asp,
                                            srad=srad,
-                                           hld=heat_ld,
-                                           relev_30m=relev30))
+                                           hld=heat_ld))
 snow_output <- snow_output[complete.cases(snow_output),]
-
-##Gets rid of outlier
-out <- snow_output$elev>1500 & snow_output$snow_cover_days<150
-snow_output <- snow_output[-which(out),] 
+snow_output <- unique(snow_output)
 
 ##Quick plots to check data.
-qplot(snow_cover_days,elevation,data=snow_output,facets=. ~ water_year,color=canopy_pct*100,xlim=c(0,365))+
+qplot(snow_cover_days,elevation,data=snow_output,facets=water_year~.,color=canopy_pct*100,xlim=c(0,365))+
   geom_smooth(method = "lm", se=TRUE, color="black", formula = y~poly(x,2))+
   labs(x="Snow Duration (Days)",
        y="Elevation (m)",
@@ -113,11 +116,14 @@ qplot(snow_cover_days,elevation,data=snow_output,facets=. ~ water_year,color=can
        title="Water Year")+
   theme_bw()
 
-##Preliminary models
-snowmod <- lm(snow_cover_days~poly(elevation,2)*water_year+canopy_pct+slope,data=snow_output)
-snowmod2 <- lmer(snow_cover_days~poly(elevation,2)*water_year+canopy_pct+slope+(1|site_name),data=snow_output)
-summary(snowmod)
-snow_output$resid <- snowmod$residuals
+##Quick plots to check data.
+qplot(snow_diss_DOY,elevation,data=snow_output,facets=water_year~.,color=canopy_pct*100)+
+  geom_smooth(method = "lm", se=TRUE, color="black", formula = y~poly(x,2))+
+  labs(x="Snow Dissapearance Date (Julian Day)",
+       y="Elevation (m)",
+       color="Canopy\nCover (%)",
+       title="Water Year")+
+  theme_bw()
 
 ##Exports the data to csv.
-write.csv(snow_output,"microclimate_snow_coords.csv")
+write.csv(snow_output,"microclimate_snow_coords_final_2_12_14.csv")

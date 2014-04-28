@@ -3,7 +3,7 @@
 # TITLE: Snow cover algorithm
 
 
-# CONTACT: Kevin Ford (krford@uw.edu) & Steve Kroiss (skroiss@gmail.com)
+# CONTACT: Kevin Ford (krford@uw.edu) & Steve Kroiss (skroiss@gmail.com) & Ian Breckheimer (ibreckhe@uw.edu)
 
 
 # DESCRIPTION: The purpose of this code is to create an algorithm that determines whether snow is covering the ground on a
@@ -44,232 +44,206 @@
 
 ############################################## 
 
-system.time({
-    # start the clock to record how long the code takes to run
+## READ IN THE DATA FILES FOR EACH TEMPERATURE SENSOR
+
+##Loads required packages
+library(data.table)
+
+file.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled"
+setwd(file.directory)
+files <- list.files(pattern=".csv$")  # the data files for each temperature sensor to be analyzed
+meta <- read.table("metadata.txt",sep=",",header=TRUE)
+
+# calib.file <- read.csv('C:/Users/Steve/Dropbox/MORA Data & Logistics/MORA
+# CleanData/Microclimate_working/HoboIbuttonDatabase.csv', na.strings=c('', 'n/a')) # Import calibration file.  Replace
+# blank and n/a values with NA's
+
+figure.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/figs"
+output.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/processed/"
+
+# # For MAC file.directory <- '~/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Data - HOBO Spring 2013'
+# setwd(file.directory) files <- list.files() # the data files for each temperature sensor to be analyzed # calib.file <-
+# read.csv('C:/Users/Steve/Dropbox/MORA Data & Logistics/MORA CleanData/Microclimate_working/HoboIbuttonDatabase.csv', #
+# na.strings=c('', 'n/a')) # Import calibration file.  Replace blank and n/a values with NA's # figure.directory <-
+# 'C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Figures - Soil temp and snow cover' #
+# output.directory <- 'C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings'
+
+calibration <- c()
+calibration.type <- c()
+stand <- c()
+plot <- c()
+year <- c()
+snow_appearance_date <- c()
+snow_disappearance_date <- c()
+snow_cover_duration <- c()  # in days
+
+# start the clock to record how long the code takes to run
+start_t <- Sys.time()
+
+nfiles <- length(files)
+for (k in 1:nfiles) {
     
+    ##Prints progress.
+    flush.console()
+    print(paste("Now Processing file: ",files[k],"(",k," of",nfiles,")"))
+  
+    ############################################## READING IN DATA FROM ONE FILE
     
-    ## READ IN THE DATA FILES FOR EACH TEMPERATURE SENSOR
-    
-    # For PC
-    file.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled"
     setwd(file.directory)
-    files <- list.files(pattern=".csv$")  # the data files for each temperature sensor to be analyzed
-    meta <- read.csv("metadata.txt")
+    d <- read.csv(files[k])
+    d <- d[complete.cases(d[, 1:5]), ]
     
-    # calib.file <- read.csv('C:/Users/Steve/Dropbox/MORA Data & Logistics/MORA
-    # CleanData/Microclimate_working/HoboIbuttonDatabase.csv', na.strings=c('', 'n/a')) # Import calibration file.  Replace
-    # blank and n/a values with NA's
+    # Name the columns
+    names(d)[1] <- "YEAR"
+    names(d)[2] <- "MONTH"
+    names(d)[3] <- "DAY"
+    names(d)[4] <- "HOUR"
+    names(d)[5] <- "TEMP"
     
-    figure.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/figs"
-    output.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/processed/"
+    d$Date <- as.Date(paste(d$MONTH, "/", d$DAY, "/", d$YEAR, sep = ""), format = "%m/%d/%Y")
+    d$DOY <- as.numeric(format(d$Date, format = "%j"))  # find the unique days
+    d <- data.table(d,key="Date")
+    
+    ######################################## 
+    
+    # EXTRACT STAND INFO FROM FILENAME
+    
+    stand[k] <- strsplit(files[k], "_")[[1]][2]
+    plot[k] <- strsplit(files[k], "_")[[1]][3]
+    year[k] <- max(d$YEAR)
+        
+    ############################################### 
+    
+    ## Criteria
+    RangeThresh <- 1  #the threshold temperature range in degrees C (i.e. if the range of soil temperatures on a given day exceed RangeThresh, snow probably absent)
+    MaxThresh <- 2
+    
+    # Create an empty data table to store values
+    days <- unique(d$Date)
+    ndays <- length(days)
+    
+    daily <- data.table(date=unique(d$Date),
+                        range=rep(NA,ndays),
+                        mean=rep(NA,ndays),
+                        rangethresh=rep(NA,ndays),
+                        maxthresh=rep(NA,ndays),
+                        snow=rep(NA,ndays))
+    setkey(daily,"date")
+                        
+    # Calculate the mean daily temperature and temperature range for each day:
+    daily[[2]] <- d[,diff(range(TEMP)),by=Date][[2]]
+    daily[[3]] <- d[,mean(TEMP,na.rm=T),by=Date][[2]]
+    daily[[4]] <- d[,diff(range(TEMP)) < RangeThresh,by=Date][[2]]
+    daily[[5]] <- d[,max(TEMP) < MaxThresh,by=Date][[2]]
 
-    # # For MAC file.directory <- '~/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Data - HOBO Spring 2013'
-    # setwd(file.directory) files <- list.files() # the data files for each temperature sensor to be analyzed # calib.file <-
-    # read.csv('C:/Users/Steve/Dropbox/MORA Data & Logistics/MORA CleanData/Microclimate_working/HoboIbuttonDatabase.csv', #
-    # na.strings=c('', 'n/a')) # Import calibration file.  Replace blank and n/a values with NA's # figure.directory <-
-    # 'C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Figures - Soil temp and snow cover' #
-    # output.directory <- 'C:/Users/Steve/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings'
+    ############################################## 
     
-    calibration <- c()
-    calibration.type <- c()
-    stand <- c()
-    plot <- c()
-    year <- c()
-    snow_appearance_date <- c()
-    snow_disappearance_date <- c()
-    snow_cover_duration <- c()  # in days
+    # DETERMINE CALIBRATION TEMPERATURE
+    calibration.temp <- mean(daily$mean[daily$rangethresh == TRUE])  # calculate the mean temp for all the days that the temp didn't exceed RangeThresh
+    calibration[k] <- ifelse(!is.na(calibration.temp), yes = calibration.temp, no = 0)  # If NA, set calibration = 0
+    d$TEMP.calib <- d$TEMP - calibration[k]  # recalibrate data 
     
-    for (k in 1:length(files)) {
-        
-        setwd(file.directory)
-        d <- read.csv(files[k])
-        d <- d[complete.cases(d[, 1:5]), ]
-        
-        # Name the columns
-        names(d)[1] <- "YEAR"
-        names(d)[2] <- "MONTH"
-        names(d)[3] <- "DAY"
-        names(d)[4] <- "HOUR"
-        names(d)[5] <- "TEMP"
-        
-        ######################################## 
-        
-        # EXTRACT STAND INFO FROM FILENAME
-        
-        stand[k] <- strsplit(files[k], "_")[[1]][2]
-        plot[k] <- strsplit(files[k], "_")[[1]][3]
-        year[k] <- max(d$YEAR)
-        
-        
-        ############################################## READING IN DATA FROM ONE FILE
-        
-        Temp <- as.numeric(d$TEMP)  #pulls out temperature data for each data row 
-        
-        # Pull out the date for each data row:
-        d$Date <- as.Date(paste(d$MONTH, "/", d$DAY, "/", d$YEAR, sep = ""), format = "%m/%d/%Y")  #pulls out the date data for each row
-        d$DOY <- as.numeric(format(d$Date, format = "%j"))  # find the unique days
-        
-        
-        ############################################### 
-        
-        
-        ## CRITERION 1
-        RangeThresh <- 1  #the threshold temperature range in degrees C (i.e. if the range of soil temperatures on a given day exceed RangeThresh, snow probably absent)
-        
-        # Calculate the daily temperature range for each day:
-        DOY <- d$DOY
-        daily_range <- ave(d$TEMP, d$DOY, FUN = function(x) {
-            diff(range(x))
-        })
-        daily_mean <- ave(d$TEMP, d$DOY, FUN = function(x) {
-            (mean(x))
-        })
-        
-        temp.d <- data.frame(d$Date, DOY, daily_range, daily_mean)
-        d.unique <- unique(temp.d)
-        head(d.unique)
-        
-        
-        
-        # Convert the daily temperature range into a binary code: 1 = daily temperature range did not exceed threshold (RangeThresh)
-        # 0 = daily temperature range did exceed threshold (RangeThresh)
-        
-        d.unique$range_logical <- c()  # will store the binary code for daily temperature range for each day
-        for (i in 1:length(d.unique$daily_range)) {
-            d.unique$range_logical[i] <- ifelse(d.unique$daily_range[i] <= RangeThresh, yes = 1, no = 0)
-        }
-        
-        
-        ############################################## 
-        
-        
-        # DETERMINE CALIBRATION TEMPERATURE
-        calibration.temp = mean(d.unique$daily_mean[d.unique$range_logical == 1])  # calculate the mean temp for all the days that the temp didn't exceed RangeThresh
-        calibration[k] <- ifelse(!is.na(calibration.temp), yes = calibration.temp, no = 0)  # If NA, set calibration = 0
-        d$TEMP.calib <- d$TEMP - calibration[k]  # recalibrate data 
-        
-        
-        ############################################### 
-        
-        
-        ## CRITERION 2
-        
-        MaxThresh <- 2  # the threshold maximum temperature (i.e. if the max temperature on a given day exceeded MaxThresh, snow probably absent)
-        
-        # Calculate maximum daily temperature for each date
-        maxT <- ave(d$TEMP.calib, d$Date, FUN = function(x) {max(x)})
-        
-        max.d <- data.frame(d$Date, maxT)
-        max.unique <- unique(max.d)
-        
-        d.unique$maxT <- max.unique$maxT
-        
-        
-        # Convert the maximum daily temperature value into a binary code 1=daily max temperature did not exceed threshold
-        # (MaxThresh) 0=daily max temperature did exceed threshold (MaxThresh)
-        
-        d.unique$maxT_logical <- c()  # will store the binary code for daily temperature range for each day
-        for (i in 1:length(d.unique$maxT)) {
-            d.unique$maxT_logical[i] <- ifelse(d.unique$maxT[i] <= MaxThresh, yes = 1, no = 0)
-        }
-        
-        
-        ################################################ 
-        
-        
-        ## EVALUATE WHETHER OR NOT SNOW COVERED THE SENSOR ON EACH DATE BASED ON THE ABOVE TWO CRITERIA
-        
-        d.unique$snow_cover = c()  # will store the algorithm's evaluation of snow cover for each date (1=snow present, 0=snow absent)
-        for (i in 1:length(d.unique$DOY)) {
-            d.unique$snow_cover[i] <- ifelse(d.unique$range_logical[i] == 1 & d.unique$maxT_logical[i] == 1, yes = 1, no = 0)
-        }
-        
-        d.unique <- d.unique[2:(length(d.unique$DOY) - 1), ]  #removes the first and last days, so there aren't any incomplete dates
-        
-        d.snow <- d.unique[d.unique$snow_cover==1,] #creates a subset of the data with snow days.
-        
-        ################################################ 
-        
-        
-        ## SUMMARIZING
-        snow_appearance_date[k] <- as.character(min(d.snow$d.Date))  # first day when snow covered sensor
-        snow_disappearance_date[k] <- as.character(max(d.snow$d.Date))  # last day when snow covered sensor
-        snow_cover_duration[k] <- sum(d.unique$snow_cover)  #'snow cover duration' the total number of days with snow cover
-        
-        ################################################ 
+    ################################################ 
+  
+    ## EVALUATE WHETHER OR NOT SNOW COVERED THE SENSOR ON EACH DATE BASED ON THE ABOVE TWO CRITERIA
+    
+    daily[[6]] <- daily[[4]] & daily[[5]]  # will store the algorithm's evaluation of snow cover for each date (1=snow present, 0=snow absent)
+    d.snow <- subset(daily,snow==TRUE)
+    ################################################ 
+    
+    ## SUMMARIZING
+    snow_appearance_date[k] <- as.character(min(d.snow$date))  # first day when snow covered sensor
+    snow_disappearance_date[k] <- as.character(max(d.snow$date))  # last day when snow covered sensor
+    snow_cover_duration[k] <- sum(d.snow$snow)  #'snow cover duration' the total number of days with snow cover
+  
+    
+    ## PLOT SOIL TEMPERATURE AND THE SNOW COVER ALGORITHm OUTPUT TO MAKE SURE OUTPUT IS REASONABLE
+    
+    # Save figure as pdf
+    setwd(figure.directory)
+    population <- strsplit(files[k], ".csv")[[1]]
+    graph.file <- paste(population, ".pdf", sep = "")
+    pdf(file = graph.file, width = 10, height = 7)
+    
+    # Left Y axis
+    par(mar = c(4, 6, 3, 6))
+    plot(d$Date, d$TEMP.calib, main = population, axes = F, xlab = "", ylab = "", pch = 20, col = "red")
+    axis(2, col = "red", col.axis = "red", col.ticks = "red")
+    leftY <- expression(paste("Temperature", degree, "C"))
+    text(par("usr")[1] - 30, par("usr")[3] + ((par("usr")[3] + par("usr")[4])/2), adj = 0.5, leftY, srt = 90, xpd = TRUE, 
+        col = "red")
+    
+    # Right Y axis
+    par(new = TRUE)
+    plot(daily$date, daily$snow, pch = 20, col = "blue", ylim = c(0, 1.2), axes = FALSE, xaxt = "n", yaxt = "n", 
+        xlab = "", ylab = "")
+    axis(4, col = "blue", col.axis = "blue", col.ticks = "blue", yaxp = c(0, 1, 1), labels = F)
+    rightY <- paste("Snow cover")
+    text(par("usr")[2] + 30, par("usr")[3] + ((par("usr")[3] + par("usr")[4])/2), adj = 0.5, rightY, srt = 270, xpd = TRUE, 
+        col = "blue")
+    text(par("usr")[2] + 15, 0, 0, srt = 270, xpd = T, col = "blue")
+    text(par("usr")[2] + 15, 1, 1, srt = 270, xpd = T, col = "blue")
+    
+    # X axis
+    axis.Date(1, d$Date, at = seq(from = min(d$Date), to = max(d$Date), by = "months"))
+    
+    dev.off()
+    
+    ################################################ 
+    
+}
 
-        
-        
-        ## PLOT SOIL TEMPERATURE AND THE SNOW COVER ALGORITH OUTPUT TO MAKE SURE OUTPUT IS REASONABLE
-        
-        # Save figure as pdf
-        setwd(figure.directory)
-        population <- strsplit(files[k], ".csv")[[1]]
-        graph.file <- paste(population, ".pdf", sep = "")
-        pdf(file = graph.file, width = 10, height = 7)
-        
-        # Left Y axis
-        par(mar = c(4, 6, 3, 6))
-        plot(d$Date, d$TEMP.calib, main = population, axes = F, xlab = "", ylab = "", pch = 20, col = "red")
-        axis(2, col = "red", col.axis = "red", col.ticks = "red")
-        leftY <- expression(paste("Temperature", degree, "C"))
-        text(par("usr")[1] - 30, par("usr")[3] + ((par("usr")[3] + par("usr")[4])/2), adj = 0.5, leftY, srt = 90, xpd = TRUE, 
-            col = "red")
-        
-        # Right Y axis
-        par(new = TRUE)
-        plot(d.unique$d.Date, d.unique$snow_cover, pch = 20, col = "blue", ylim = c(0, 1.2), axes = FALSE, xaxt = "n", yaxt = "n", 
-            xlab = "", ylab = "")
-        axis(4, col = "blue", col.axis = "blue", col.ticks = "blue", yaxp = c(0, 1, 1), labels = F)
-        rightY <- paste("Snow cover")
-        text(par("usr")[2] + 30, par("usr")[3] + ((par("usr")[3] + par("usr")[4])/2), adj = 0.5, rightY, srt = 270, xpd = TRUE, 
-            col = "blue")
-        text(par("usr")[2] + 15, 0, 0, srt = 270, xpd = T, col = "blue")
-        text(par("usr")[2] + 15, 1, 1, srt = 270, xpd = T, col = "blue")
-        
-        # X axis
-        axis.Date(1, d$Date, at = seq(from = min(d$Date), to = max(d$Date), by = "months"))
-        
-        dev.off()
-        
-        ################################################ 
-        
-    }
-    
-    # Consolidate summarized results for each sensor into one data frame
-    output <- data.frame(files, 
-                         year, 
-                         stand, 
-                         plot, 
-                         calibration, 
-                         snow_appearance_date, 
-                         snow_disappearance_date,
-                         snow_cover_duration)
-    
-})  #stop the clock
+##Computes elapsed time.
+stop_t <- Sys.time()
+print(paste("Run took ",stop_t - start_t))
+
+# Consolidate summarized results for each sensor into one data frame
+output <- data.frame(files, 
+                     year, 
+                     stand, 
+                     plot, 
+                     calibration, 
+                     snow_appearance_date, 
+                     snow_disappearance_date,
+                     snow_cover_duration)
 
 ##Match the snow cover information to the sensor metadata.
 out_merged <- merge(meta,output,by.x="out_filename",by.y="files",all.x=T)
 
 ##Data quality flags:
-out_merged$flag_sensor_fail <- (as.Date(out_merged$snow_disappearance_date) - as.Date(out_merged$date_max)) > -2
-out_merged$flag_temp_high <- out_merged$temp_max > 50
+out_merged$flag_sensor_fail <- (as.Date(out_merged$snow_disappearance_date) - as.Date(out_merged$date_max)) >= -1
+out_merged$flag_temp_high <- out_merged$temp_max > 90
 out_merged$flag_temp_low <- out_merged$temp_min < -30
 out_merged$flag_high_calib <- out_merged$calibration >= 2 | out_merged$calibration <= -2
 out_merged$flag_no_snow <- out_merged$snow_cover_duration <= 15
 out_merged$flagged <- with(out_merged, flag_sensor_fail | flag_temp_high | flag_temp_low | flag_high_calib | flag_no_snow)
 
-##Moves pdf graphics of flagged files to a new directory
+##Moves .csv and .pdf graphics of flagged files to a new directories
 out_flagged <- out_merged[out_merged$flagged==TRUE,]
+flagged_csvs <- out_flagged$out_filename
+setwd(output.directory)
+dir.create("./flagged")
+file.copy(paste(file.directory,"/",as.character(flagged_csvs),sep=""),"./flagged")
 flagged_pdfs <- sub(".csv",".pdf",out_flagged$out_filename)
 setwd(figure.directory)
 dir.create("./flagged")
 file.copy(flagged_pdfs,"./flagged")
+
+##Moves .csv and .pdf graphics of unflagged files to a new directory
+out_unflagged <- out_merged[out_merged$flagged==FALSE,]
+unflagged_csvs <- out_unflagged$out_filename
+setwd(output.directory)
+dir.create("./unflagged")
+file.copy(paste(file.directory,"/",as.character(unflagged_csvs),sep=""),"./unflagged")
+unflagged_pdfs <- sub(".csv",".pdf",out_unflagged$out_filename)
+setwd(figure.directory)
+dir.create("./unflagged")
+file.copy(unflagged_pdfs,"./unflagged")
 
 ##subsets data for the unflagged files
 out_unflagged<- out_merged[out_merged$flagged==FALSE,]
 
 # Save output file
 setwd(output.directory)
-write.table(out_unflagged, file = "Snow_cover_cleaned.txt", sep = ",", row.names = FALSE)
+write.table(out_unflagged, file = "Snow_cover_meta_cleaned.csv", sep = ",", row.names = FALSE)
  
