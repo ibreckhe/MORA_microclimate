@@ -15,7 +15,7 @@ class_obs <- function(data,spec_col,species,stage_col,stage){
   col_test <- all(spec_col %in% allcols & stage_col %in% allcols)
   if (col_test == FALSE){stop("One of those columns doesn't exist!")}
   # Creates the output vector.
-  criterion <- data[,spec_col] == species & data[,stage_col] == stage
+  criterion <- data[,spec_col] %in% species & data[,stage_col] == stage
   
   # Checks to make sure that at least one row is true,
   # otherwise print a warning
@@ -181,9 +181,11 @@ boot_preds <- function(model,data,dss_breaks,pred.data,n_replicates,clustervar,i
 }
 
 # Function to return 2.5 and 97.5% prediction quantiles from each boostrap sample.
-boot_preds2 <- function(model,data,dss_breaks,pred.data,n_replicates,clustervar){
+boot_preds2 <- function(model,data,dss_breaks,pred.data,n_replicates,
+                        clustervar,colnames,species_col,stage_col,stage){
   # Distributes jobs to nodes.
   require(foreach)
+  require(plyr)
   require(doParallel)
   require(data.table)
   
@@ -192,15 +194,22 @@ boot_preds2 <- function(model,data,dss_breaks,pred.data,n_replicates,clustervar)
   spp <- model$data$Species[1]
   
   # Reduces complexity of the data, keeping only columns we need
-  data <- data[,c("id","SPECIES","PHEN_PHASE","datetaken_DOY","dss","ownerdate")]     
+  data <- data[,colnames]     
+  
+  # Classifies observations
+  boot.classed <- class_obs(data,species_col,spp,stage_col,stage)
+  
+  ## Removes other records of the particular photos with target species
+  photos <- unique(boot.classed$photo[boot.classed$criterion==TRUE])
+  boot.classed2 <- boot.classed[-c(which((boot.classed$photo %in% photos & boot.classed$criterion==FALSE))),]
   
   # Creates a list with clusters.
   # get a vector with all clusters
-  clust <- sort(unique(data[,clustervar]))
+  clust <- sort(unique(boot.classed2[,clustervar]))
   
   # group the data points per cluster
   clust.group <- function(clust) {
-    data[data[,clustervar]==clust,]
+    boot.classed2[boot.classed2[,clustervar]==clust,]
   }
   
   clust.list <- lapply(clust,clust.group)
@@ -212,13 +221,18 @@ boot_preds2 <- function(model,data,dss_breaks,pred.data,n_replicates,clustervar)
     source("~/code/MORA_microclimate/phenology_functions.R")
     require(data.table)
     
-    # Resamples the cluster list and reassembles it as a data frame.
-    boot.ind <- sample(clust.list,length(clust.list),replace=TRUE)
-    boot.resamp <- as.data.frame(rbindlist(boot.ind)) #speedy list to data frame
+    # Resamples the cluster list
+    boot.clust <- sample(clust.list,length(clust.list),replace=TRUE)
+    
+    # Resamples all the photos in that cluster
+    boot.fun <- function(x){x[sample(1:(dim(x)[1]),replace=TRUE),]}
+    boot.clust2 <- lapply(boot.clust,boot.fun)
+    
+    # Assembles everything back into a data frame
+    boot.resamp <- as.data.frame(rbindlist(boot.clust2)) #speedy list to data frame
     
     # Re-bins the data.
-    boot.classed <- class_obs(boot.resamp,"SPECIES",spp,"PHEN_PHASE","FLOWERING")
-    boot.binned <- bin_obs(boot.classed,column="dss",breaks=dss_breaks,
+    boot.binned <- bin_obs(boot.resamp,column="dss",breaks=dss_breaks,
                            new_colname="dss_bin")
     boot.data <- sum_obs(boot.binned,"dss_bin",success_colname=spp,
                          trial_colname="All_Photos")
@@ -233,7 +247,10 @@ boot_preds2 <- function(model,data,dss_breaks,pred.data,n_replicates,clustervar)
     boot.pred <- predict(boot.model,newdata=data.frame(dss_num=pred.data),type="response")
     boot.pred.df <- data.frame(rep=i,Species=model$data$Species[1],dss=pred.data,pred=boot.pred)
   }
-  
+
+  # Gets rid of NaN predictions.
+  boot.pred.df$pred[is.nan(boot.pred.df$pred)] <- NA
+
   # Summarize output using the ddply function
   bnds <- ddply(boot.pred.df,~dss,.fun=summarise,
               Species = Species[1],
@@ -248,7 +265,7 @@ boot_preds2 <- function(model,data,dss_breaks,pred.data,n_replicates,clustervar)
   
   intervals <- ddply(boot.pred.df,~rep,.fun=obs_intervals,
                      threshold=0.158,bin_width=1)
-  intervals$tol <- intervals$upr_bound - intervals$lwr_bound
+  intervals$tol <- (intervals$upr_bound - intervals$lwr_bound) / 2
   tol_lwr <- quantile(intervals$tol,0.025,na.rm=TRUE)
   tol_upr <- quantile(intervals$tol,0.975,na.rm=TRUE)
   tol_int <- c(tol_lwr,tol_upr)
