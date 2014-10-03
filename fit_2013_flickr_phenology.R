@@ -14,25 +14,26 @@ source("~/code/MORA_microclimate/phenology_functions.R")
 
 ##Brings in 2013 flickr data
 fl <- read.csv("MORA_flickr_classified_all_2013_covars.csv")
+colnames(fl) <- tolower(colnames(fl))
 
 ####Format and filter data####
 
 ##Converts date taken to julian day.
 fl$datetaken <- strptime(fl$datetaken,format="%m/%d/%y %H:%M")
 fl$datetaken <- as.POSIXct(fl$datetaken) # convert to POSIXct to use in data frames / ddply
-fl$datetaken_DOY <- as.numeric(strftime(fl$datetaken,format="%j"))
+fl$datetaken_doy <- as.numeric(strftime(fl$datetaken,format="%j"))
 
 ##Converts flowering NA's to NF.
-sp <- as.character(fl$SPECIES)
+sp <- as.character(fl$species)
 sp[is.na(sp)] <- "NF"
 sp <- as.factor(sp)
-fl$SPECIES <- sp
+fl$species <- sp
 
 ##Creates a binary column for the presence of focal species.
-fl$focalsp <- fl$SPECIES != "NF"
+fl$focalsp <- fl$species != "NF"
 
 ##Creates days since snow variable.
-fl$dss <- fl$datetaken_DOY - fl$snow_diss_2013
+fl$dss <- fl$datetaken_doy- fl$snow_diss_2013
 hist(fl$dss)
 
 ##Filters data to bring in only data in the park bounds.
@@ -42,10 +43,10 @@ fl <- fl[!is.na(fl$can_pct),]
 fl <- fl[fl$accuracy==16,]
 
 ##Filters data to exclude photos not from the park.
-fl <- fl[-c(which(fl$SPECIES=="NP")),]
+fl <- fl[-c(which(fl$species=="NP")),]
 
 ##Filters data to exclude flowers on glacier.
-fl <- fl[-c(which(fl$SPECIES!="NF" & fl$snow_melt==2)),]
+fl <- fl[-c(which(fl$species!="NF" & fl$snow_melt==2)),]
 
 ##Filters data to exclude flowers on snow.
 #fl <- fl[-c(which(fl$focalsp==TRUE & fl$dss < -1)),]
@@ -56,6 +57,9 @@ fl <- fl[-c(which(fl$owner=="88227046@N00")),]
 ##Creates a unique factor for photos taken on a particular 
 ##date by a particular person.
 fl$ownerdate <- factor(paste(fl$owner,fl$datetaken_DOY,sep="_"))
+
+##Creates a unique factor for photos
+fl$photo <- factor(paste(fl$ownerdate,fl$UTM_E,fl$UTM_N,fl$ID,sep="_"))
 
 ##Puts all of the points on a map to check the spatial distribution.
 ##Quick map to check data.
@@ -71,7 +75,7 @@ map <- ggmap(gmap)+
              data=fl,
              alpha=0.3,
              position=position_dodge(width = 0.01,height=0.01))+
-  geom_point(aes(x=long,y=lat,color=SPECIES),
+  geom_point(aes(x=long,y=lat,color=species),
              data=subset(fl,PHEN_PHASE=="FLOWERING"),
              position=position_dodge(width = 0.01,height=0.01))
 map
@@ -94,7 +98,7 @@ spp <- c("Erythronium montanum",
 
 summed_all <- data.frame()
 for (i in 1:length(spp)){
-  classed <- class_obs(fl,"SPECIES",spp[i],"PHEN_PHASE","FLOWERING")
+  classed <- class_obs(fl,"species",spp[i],"phen_phase","FLOWERING")
   binned <- bin_obs(classed,column="dss",breaks=dss_breaks,
                     new_colname="dss_bin")
   summed <- sum_obs(binned,"dss_bin",success_colname=spp[i],
@@ -156,8 +160,8 @@ aic_table$delta <- aic_table$quad_aic - aic_table$log_aic
 aic_table
 
 # Finds the species for which the log model does better better.
-log_table <- subset(aic_table,delta > -1)
-gaus_table <- subset(aic_table,delta <= -1)
+log_table <- subset(aic_table,delta > 0)
+gaus_table <- subset(aic_table,delta <= 0)
 
 ####Uses the predict function to generate predicted values####
 dss_days <- seq(-50,150,by=0.1)
@@ -309,7 +313,16 @@ for (i in 1:length(spp)){
                      dss_breaks=dss_breaks,
                      pred.data=dss_days,
                      clustervar="ownerdate",
-                     n_replicates=5000)
+                     colnames=c("species",
+                                "phen_phase",
+                                "datetaken_doy",
+                                "dss",
+                                "photo",
+                                "ownerdate"),
+                     species_col="species",
+                     stage_col="phen_phase",
+                     stage="FLOWERING",
+                     n_replicates=100)
   boots <- rbind(boots,boot[[1]])
   boot.opts <- rbind(boot.opts,data.frame(species=best_mods[[i]]$data$Species[1],
                                           opt_2.5=boot[[2]][1],
