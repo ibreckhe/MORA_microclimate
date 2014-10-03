@@ -52,22 +52,29 @@ input.WorkingDirectories <- c("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&A
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Spring-HOBO",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Fall-HOBO",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Spring-HOBO",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Hobo (Summer Download)",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Humidity Ibutton (Summer Download)",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Soil Hobo (Summer Download)",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Wonderland 2014",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2013",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2011",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2010",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2009",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Jessica")
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Jessica",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/spring",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/fall")
 
                         
 # name the working directory where you want to put the processed .csv files
-output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled"
+output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_air"
 
-prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
+# prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
 output.Prefixes <- c(rep("FordTheo",6),
                      rep("Ettinger",8),
-                     rep("JHRL",25),
-                      rep("Lundquist",1))
+                     rep("JHRL",29),
+                     rep("Lundquist",1),
+                     rep("Breckheimer",2))
 
 ## set the working directory to the folder with all the raw .csv files you wish to process (this folder can contain other
 ## file types but should contain .csv files that are not HOBO output files)
@@ -119,10 +126,14 @@ formatMicro <- function(CSV_FILE) {
             }
             if (any(grepl("DS1922L",header)) == TRUE) {
                 # do this if the ibutton is model DS1922L
-                file <- read.table(CSV_FILE,skip=20,header=FALSE,sep=",")  # remove rows from the top of the data frame
+                file <- read.table(CSV_FILE,skip=22,header=FALSE,sep=",")  # remove rows from the top of the data frame
             }
             if (any(grepl("DS2422",header)) == TRUE) {
-              # do this if the ibutton is model DS1922L
+              # do this if the ibutton is model DS1922
+              file <- read.table(CSV_FILE,skip=20,header=FALSE,sep=",")  # remove rows from the top of the data frame
+            }
+            if (any(grepl("DS1923",header)) == TRUE) {
+              # do this if the ibutton is model DS1923
               file <- read.table(CSV_FILE,skip=20,header=FALSE,sep=",")  # remove rows from the top of the data frame
             }
             # do this if there is no header.
@@ -196,13 +207,17 @@ formatMicro <- function(CSV_FILE) {
   datestring <- strsplit(as.character(file$DateTime[1]),split=" ")[[1]][1]
   yeartest <- function(x){any(grepl(as.character(x),datestring))}
   valid.year <- any(sapply(valid_years,FUN=yeartest))
+  am.pm <- any(grepl("PM",file$DateTime[1:20]))
     
   # Converts date vector to separate columns for year,month,day,and hour.
   if(class(file$DateTime)[1]=="POSIXct"){
     dateTime <- file$DateTime
-  }
-  else if(valid.year) {
+  }else if(am.pm && valid.year) {
+      dateTime <- strptime(file$DateTime, "%m/%d/%Y %r")
+  }else if(am.pm==FALSE && valid.year==TRUE) {
     dateTime <- strptime(file$DateTime, "%m/%d/%Y %H:%M")
+  }else if(am.pm==TRUE && valid.year==FALSE) {
+    dateTime <- strptime(file$DateTime, "%m/%d/%y %r")
   }else{
     dateTime <- strptime(file$DateTime, "%m/%d/%y %H:%M")
   }
@@ -210,9 +225,10 @@ formatMicro <- function(CSV_FILE) {
   YEAR <- as.numeric(strftime(dateTime,format="%Y"))
   MONTH <- as.numeric(strftime(dateTime,format="%m"))
   DAY <- as.numeric(strftime(dateTime,format="%d"))
-  HOUR <- as.numeric(strftime(dateTime,format="%k"))
+  HOUR <- as.numeric(strftime(dateTime,format="%H"))
+  MIN <- as.numeric(strftime(dateTime,format="%M"))
   TEMP <- as.numeric(file$Temperature)
-  file <- cbind(YEAR,MONTH,DAY,HOUR,TEMP)
+  file <- cbind(YEAR,MONTH,DAY,HOUR,MIN,TEMP)
   
   # Extracts the range of dates in the file.
   date_min <- min(dateTime,na.rm=T)
