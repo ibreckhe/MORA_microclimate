@@ -55,6 +55,7 @@ input.WorkingDirectories <- c("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&A
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Hobo (Summer Download)",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Humidity Ibutton (Summer Download)",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Soil Hobo (Summer Download)",
+                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Ibutton HOBO (Spring Download)",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Wonderland 2014",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2013",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
@@ -64,15 +65,14 @@ input.WorkingDirectories <- c("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&A
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Jessica",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/spring",
                               "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/fall")
-
-                        
+               
 # name the working directory where you want to put the processed .csv files
-output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_air"
+output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_airtemp"
 
 # prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
 output.Prefixes <- c(rep("FordTheo",6),
                      rep("Ettinger",8),
-                     rep("JHRL",29),
+                     rep("JHRL",30),
                      rep("Lundquist",1),
                      rep("Breckheimer",2))
 
@@ -307,5 +307,3 @@ for (i in 1:length(input.WorkingDirectories)){
       print(paste("Completed processing file ",file_n," of ",nfiles))
   }
 }
-
-#  

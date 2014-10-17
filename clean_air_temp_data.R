@@ -9,14 +9,16 @@ library(plyr)
 library(data.table)
 library(dplyr)
 library(psych)
+library(raster)
+library(rgdal)
 
-## Sets working directory.
-setwd("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_airtemp")
-
+## Sets working directory and appropriate time zone.
+setwd("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled")
+Sys.setenv(TZ="Etc/GMT-7")
 
 #### Creates time-series figures for each file to check manually. ####
 
-airtemp_files <- list.files(".")
+airtemp_files <- list.files(".",pattern=".csv$")
 
 for (i in 1:length(airtemp_files)){
   
@@ -220,8 +222,7 @@ for (i in 1:length(airtemp_files)){
 }
 
 ## Checks to see if it worked.
-## Creates the plot
-xlimits <- as.POSIXct(c("2010-11-17 00:00:00","2010-11-24 00:00:00"))
+xlimits <- as.POSIXct(c("2009-8-17 00:00:00","2009-8-24 00:00:00"))
 plot(series_list[[1]],
      ylim=c(-20,40),
      ylab=expression(paste("Temperature, ", degree, "C")),
@@ -248,8 +249,6 @@ for(i in 1:length(series_list_tz)){
 }
 
 ## Makes a nice figure.
-## Checks to see if it worked.
-## Creates the plot
 xlimits <- as.POSIXct(c("2006-10-1 00:00:00","2014-10-1 00:00:00"))
 plot(series_list[[1]],
      ylim=c(-20,40),
@@ -279,45 +278,138 @@ for (i in 1:length(airtemp_files)){
   write.csv(outdf,file=airtemp_files[i],row.names=FALSE)
 }
 
-## Aggregates data to daily and writes to disk.
-setwd("../cleaned_dailyair")
-daily_list <- list()
+## Creates metadata for clean time-series.
+nfiles <- length(airtemp_files)
+metadata <- data.frame(FILE=rep("NA",nfiles),
+                       DATE_MIN=rep(as.POSIXct("0001-01-01"),nfiles),
+                       DATE_MAX=rep(as.POSIXct("0001-01-01"),nfiles),
+                       TEMP_MIN=rep(NA,nfiles),
+                       TEMP_MAX=rep(NA,nfiles),
+                       LOG_INT=rep(NA,nfiles))
+metadata$FILE <- as.character(metadata$FILE)
 for (i in 1:length(airtemp_files)){
   series <- series_list_tz[[i]]
-  dailymean <- apply.daily(series,FUN=function(x) mean(x))
-  dailymax <- apply.daily(series,FUN=function(x) max(x))
-  dailymin <- apply.daily(series,FUN=function(x) min(x))
-  daily_series <- cbind(dailymean,dailymax,dailymin)
-  daily_list[[i]] <- daily_series
-  colnames(daily_series) <- c("TAVG","TMAX","TMIN")
-  indexFormat(daily_series) <- "%Y-%m-%d"
-  index <- as.character(index(daily_series),format="%Y-%m-%d")
-  daily_out <- data.frame(DATE=index,daily_series)
-  write.csv(daily_out,file=airtemp_files[i],row.names=FALSE)
+  
+  ## Gets file name
+  metadata[i,1] <- airtemp_files[i]
+  
+  ## Gets date range.
+  metadata[i,2] <- min(index(series))
+  metadata[i,3] <- max(index(series))
+  
+  ## Gets the temp range
+  metadata[i,4] <- min(series)
+  metadata[i,5] <- max(series)
+  
+  ## Gets the logging interval.
+  metadata[i,6] <- log_int <- as.numeric(index(series[2]) - index(series[1]))
 }
+write.csv(metadata,file="metadata.txt",row.names=FALSE)
 
-## Plots daily data.
-## Makes a nice figure.
-## Checks to see if it worked.
-## Creates the plot
+## Reads in cleaned metadata and adds geographic coordinates.
+setwd("../cleaned_airtemp")
+meta_cleaned <- read.table("metadata_cleaned.txt",header=TRUE,sep="\t")
+meta_cleaned$DATE_MIN <- as.POSIXct(as.character(meta_cleaned$DATE_MIN),format="%m/%d/%y %H:%M")
+meta_cleaned$DATE_MAX <- as.POSIXct(as.character(meta_cleaned$DATE_MAX),format="%m/%d/%y %H:%M")
+sensor_locs <- read.csv("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/sensor_locations_updated_10-5-2014.csv")
+sensor_locs$X <- as.numeric(as.character(sensor_locs$X))
+sensor_locs$Y <- as.numeric(as.character(sensor_locs$Y))
+sensor_locs$Long <- as.numeric(as.character(sensor_locs$Long))
+sensor_locs$Lat <- as.numeric(as.character(sensor_locs$Lat))
+meta_cleaned$combined_1 <- paste(meta_cleaned$SITE,meta_cleaned$Sensor,sep="-")
+meta_cleaned_geo <- merge(meta_cleaned,sensor_locs,by="combined_1",keep.x=TRUE)
+
+## Appends elevation and canopy cover data to metadata.
+meta_cleaned_geo$Long <- as.numeric(as.character(meta_cleaned_geo$Long))
+meta_cleaned_geo$Lat <- as.numeric(as.character(meta_cleaned_geo$Lat))
+coordinates(meta_cleaned_geo) <-  ~Long+Lat
+proj4string(meta_cleaned_geo) <- "+proj=longlat +datum=WGS84 +no_defs"
+meta_cleaned_utm <- spTransform(meta_cleaned_geo,
+                                CRS("+proj=utm +zone=10 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+elev <- raster("~/Desktop/MORA_elev_3m.tif")
+elev243 <- raster("~/Desktop/MORA_elev__focal_243m.tif")
+canopy <- raster("~/Desktop/MORA_can_pct_focal81m.tif")
+mora_rasters <- stack(elev,elev243,canopy)
+meta_cleaned_elev <- extract(x=mora_rasters,y=meta_cleaned_utm,method='simple',sp=TRUE)
+meta_cleaned_elev$relev243 <- meta_cleaned_elev$MORA_elev_3m - meta_cleaned_elev$MORA_elev__focal_243m
+meta_cleaned_elev$subalpine <- meta_cleaned_elev$MORA_elev_3m>1400 & meta_cleaned_elev$MORA_can_pct_focal81m < 0.75
+meta_cleaned_elev$forest_high <- meta_cleaned_elev$MORA_elev_3m>1400 & meta_cleaned_elev$MORA_can_pct_focal81m >= 0.75
+meta_cleaned_elev$forest_low <- meta_cleaned_elev$MORA_elev_3m<=1400 & meta_cleaned_elev$MORA_can_pct_focal81m >= 0.75
+meta_cleaned_elev$clearing <- meta_cleaned_elev$MORA_can_pct_focal81m <= 0.75 & meta_cleaned_elev$MORA_elev_3m<=1400
+
+##Gets it in the same order as the files.
+meta_cleaned_all <- meta_cleaned_elev[order(meta_cleaned_elev$FILE),]
+
+## Makes a quick plot of the site categories.
+par(mar=c(4,4,1,1),mfrow=c(1,1))
+plot(MORA_elev_3m~MORA_can_pct_focal81m,data=meta_cleaned_elev,type="n",xlab="Canopy Cover (%)",ylab="Elevation (m)")
+points(jitter(meta_cleaned_elev$MORA_can_pct_focal81m[meta_cleaned_elev$subalpine],amount=0.01),
+       jitter(meta_cleaned_elev$MORA_elev_3m[meta_cleaned_elev$subalpine],amount=20),col=1)
+points(jitter(meta_cleaned_elev$MORA_can_pct_focal81m[meta_cleaned_elev$forest_high],amount=0.01),
+       jitter(meta_cleaned_elev$MORA_elev_3m[meta_cleaned_elev$forest_high],amount=20),col=2)
+points(jitter(meta_cleaned_elev$MORA_can_pct_focal81m[meta_cleaned_elev$forest_low],amount=0.01),
+       jitter(meta_cleaned_elev$MORA_elev_3m[meta_cleaned_elev$forest_low],amount=20),col=3)
+points(jitter(meta_cleaned_elev$MORA_can_pct_focal81m[meta_cleaned_elev$clearing],amount=0.01),
+       jitter(meta_cleaned_elev$MORA_elev_3m[meta_cleaned_elev$clearing],amount=20),col=4)
+legend('bottomleft',bty="n",legend=c('Subalpine','High Forest','Low Forest','Clearing/Gap'),col=c(1:4),pch=c(21))
+
+## Reads the hourly data back in and associates it with the metadata.
+setwd("../cleaned_airtemp")
+hourly_files <- list.files(".",pattern=".csv$")
+hourly_series <- list()
+for (i in 1:length(hourly_files)){
+  print(paste("Now processing ",hourly_files[i],". File ",i ," of",length(hourly_files)))
+  hourly_meta <- as.list(meta_cleaned_all@data[i,c(1:12,18:25)])
+  temp_series <- read.csv(hourly_files[i])
+  dates <- as.POSIXlt(as.character(temp_series$DATE),format="%Y-%m-%d %H:%M:%S",TZ="Etc/GMT-7")
+  temp_xts <- xts(temp_series$TEMP,order.by=dates,tzone="Etc/GMT-7")
+  temp_xts_no_na <- temp_xts[!is.na(index(temp_xts))]
+  hourly_meta$temp <- temp_xts_no_na
+  names(hourly_meta) <- c("code","file","study","site","sensor","date_min","date_max",
+                          "temp_min","temp_max","log_interval_hrs","long","lat","elev",
+                          "elev243","relev243","cancov81","subalpine","forest_high","forest_low","clearing","data")
+  hourly_series[[i]] <- hourly_meta
+}
+names(hourly_series) <- hourly_files
+save(hourly_series,file="hourly_series.Rdata")
+
+## Plots daily data in a ridiculously large plot.
+pdf("../raw/daily_temp_ultrawide.pdf",width=60,height=8)
 xlimits <- as.POSIXct(c("2006-10-1 00:00:00","2014-10-1 00:00:00"))
-plot(daily_list[[1]][,1],
-     ylim=c(-20,40),
+plot(daily_series[[1]]$data$TAVG,
+     ylim=c(-20,30),
      ylab=expression(paste("Temperature, ", degree, "C")),
      xlim=xlimits,
      main='All Datasets',
      major.ticks=FALSE,
      minor.ticks=FALSE,
      auto.grid=FALSE,
-     axes=FALSE)
-for(i in 1:length(series_list_tz)){
-  lines(y=daily_list[[i]][,1],x=index(daily_list[[i]]),
+     axes=FALSE,
+     lwd=0.1)
+for(i in 1:length(daily_series)){
+  lines(y=daily_series[[i]]$data$TAVG,x=daily_series[[i]]$data$TAVG,
         ylim=c(-20,40),
         xlim=xlimits,
         main="",
         col=i,
         lwd=0.1)
 }
-axis.POSIXct(1, x=index(daily_list[[i]]),labels = TRUE)
-axis(2, at=c(-20,-10,0,10,20,30,40),labels = TRUE)
+xlabels <- seq(as.POSIXct("2006-10-1 00:00:00"),as.POSIXct("2014-10-1 00:00:00"),by='month')
+xlabels2 <- seq(as.POSIXct("2007-1-1 00:00:00"),as.POSIXct("2014-1-1 00:00:00"),by='year')
+axis.POSIXct(side=1, at=xlabels,format="%b",labels = TRUE)
+axis.POSIXct(side=1,at=xlabels2,format="%Y",tck=1,labels = TRUE,hadj=-9,padj=1.8)
+axis(side=2, at=c(-20,-10,0,10,20,30,40),labels = TRUE)
 
+##Adds topoWX daily averages.
+PRISM_avg <- read.csv("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/PRISM_daily_2004_2014.csv")
+PRISM_avg$DATE <- as.POSIXct(PRISM_avg$DATE)
+PRISM_avg$TEMP <- xts(PRISM_avg$TEMP,order.by=PRISM_avg$DATE)
+lines(PRISM_avg$TEMP,col=1,lwd=2)
+
+
+##Adds topoWX daily averages
+topoWX_avg <-read.csv("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/topowx_daily_2004_2012.csv") 
+topoWX_avg$DATE <- as.POSIXct(topoWX_avg$DATE)
+topoWX_avg$TAVG <- xts(topoWX_avg$TAVG,order.by=topoWX_avg$DATE)
+lines(topoWX_avg$TAVG,col=2,lwd=2)
+dev.off()
