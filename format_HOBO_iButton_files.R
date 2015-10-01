@@ -19,62 +19,66 @@
 ## name the working directories
 
 # name the working directories with the .csv files you want to process.
-input.WorkingDirectories <- c("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2012-13",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/ibuttondata2012",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/HOBOdata2012",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/dormant season",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/growing season",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2009-10/manipulated",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/hobodata2013",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/ibuttondata2012",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2012Summer",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2012Fall",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2011Summer",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2011Fall",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2010-06",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2009-09",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_iButton",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_HOBO/summerDownload",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_HOBO/springDownload",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2012",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2011-2012",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2010-2011",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2009-2010",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2008-2009",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SummerDownload_Clean",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SpringDownload_Clean",                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SummerDownload_Clean",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Spring-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Fall-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Spring-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2011/Fall-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2011/Spring-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Fall-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Spring-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Fall-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Spring-HOBO",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Hobo (Summer Download)",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Humidity Ibutton (Summer Download)",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Soil Hobo (Summer Download)",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Ibutton HOBO (Spring Download)",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Wonderland 2014",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2013",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2011",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2010",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2009",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Jessica",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/spring",
-                              "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/fall")
+input.WorkingDirectories <- c("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2012-13",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/ibuttondata2012",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/HOBOdata2012",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/dormant season",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/growing season",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2009-10/manipulated",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/hobodata2013",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/ibuttondata2012",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2012Summer",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2012Fall",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2011Summer",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2011Fall",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2010-06",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ailene/HoboIbuttonData/HoboData2009-09",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_iButton",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_HOBO/summerDownload",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2013/air_HOBO/springDownload",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2012",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2011-2012",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2010-2011",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2009-2010",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/AirTemp&Humidity/cleaned/2008-2009",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SummerDownload_Clean",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SpringDownload_Clean",                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2013/SummerDownload_Clean",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Spring-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Fall-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2012/Spring-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2011/Fall-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2011/Spring-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Fall-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2010/Spring-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Fall-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/SoilTemp&Light/Clean_Data/2009/Spring-HOBO",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Hobo (Summer Download)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Humidity Ibutton (Summer Download)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Soil Hobo (Summer Download)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Air Ibutton HOBO (Spring Download)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Wonderland 2014",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Soil Hobo (1st stand visit)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Air Hobo (1st stand visit)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2013",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2011",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2010",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2009",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Jessica",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/spring",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2014/fall",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2015/spring",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Ian/Riparian 2015/fall")
                
 # name the working directory where you want to put the processed .csv files
-output.WorkingDirectory <-  "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_airtemp"
+output.WorkingDirectory <-  "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled2"
 
 # prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
 output.Prefixes <- c(rep("FordTheo",6),
                      rep("Ettinger",8),
-                     rep("JHRL",30),
+                     rep("JHRL",32),
                      rep("Lundquist",1),
-                     rep("Breckheimer",2))
+                     rep("Breckheimer",4))
 
 ## set the working directory to the folder with all the raw .csv files you wish to process (this folder can contain other
 ## file types but should contain .csv files that are not HOBO output files)
@@ -83,7 +87,7 @@ setwd(input.WorkingDirectories[1])
 
 #### ==================FUNCTIONS======================================####
 
-## write a function for modifying the .csv files
+##Function for formatting the .csv files.
 formatMicro <- function(CSV_FILE) {
     print(paste("Now processing file ",CSV_FILE))
     header <- scan(CSV_FILE,nlines=30,what='raw',quiet=TRUE)  # read in the beginning of the file
@@ -107,7 +111,7 @@ formatMicro <- function(CSV_FILE) {
                                               
     is.datetime <- unlist(strsplit(header[1],split=","))[1] == "Date/Time"
     is.ibutton <- any(grepl("iButton", header))  # determine whether the sensor is an ibutton or not
-    is.hobo <- any(grepl("File", header)) && any(grepl("Time", header)) && any(grepl("End", header))
+    is.hobo <- any(grepl("Plot", header)) && any(grepl("Time", header)) && any(grepl("Title", header))
     if (is.formatted == TRUE){
       file <- read.table(CSV_FILE,skip=1,sep=",")
       DateTime <- paste(file[,2],"/",file[,3],"/",file[,1]," ",file[,4],":00",sep="")
@@ -203,7 +207,7 @@ formatMicro <- function(CSV_FILE) {
   }
   
   # Tests for a valid 4-digit year
-  valid_years <- 2007:2014
+  valid_years <- 2007:2015
   datestring <- strsplit(as.character(file$DateTime[1]),split=" ")[[1]][1]
   yeartest <- function(x){any(grepl(as.character(x),datestring))}
   valid.year <- any(sapply(valid_years,FUN=yeartest))

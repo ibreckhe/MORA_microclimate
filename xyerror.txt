@@ -1,0 +1,19 @@
+
+    model {
+    ## Priors
+    alpha ~ dnorm(0, .001)
+    beta ~ dnorm(0, .001)
+    sdy ~ dnorm(0,0.1)T(0,)
+    tauy <- 1 / (sdy * sdy)
+    sdx ~ dnorm(pop_sdx,0.1)T(0,)
+    taux <- 1 / (sdx * sdx)
+    
+    ## Likelihood
+    for (i in 1:n){
+    xtrue[i] ~ dnorm(0,taux)
+    x[i] ~ dnorm(xtrue[i],obs_taux)
+    y[i] ~ dnorm(mu[i], tauy)
+    mu[i] <- alpha + beta * xtrue[i]
+    }
+    }
+    

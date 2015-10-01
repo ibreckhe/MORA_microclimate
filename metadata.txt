@@ -1,0 +1,5 @@
+Dataset: Daily clear-sky solar radiation for Mt. Rainier National Park.
+Author: Ian Breckheimer
+Date: Oct 30, 2014
+Source: These maps were created with the GRASS GIS program r.sun (version 7.0 beta3) using the National Elevation Dataset 1/3 arc-second DEM, and were resampled to a 9m projected resolution (NAD83 UTM Zone 10N).
+Details: The maps were created using a 30-minute time-step and 30-degree horizon angle step using default monthly Linke atmospheric turbidity coefficients.

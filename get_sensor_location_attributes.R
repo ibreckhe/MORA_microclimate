@@ -12,7 +12,7 @@ library(ggplot2)
 setwd("~/code/MORA_microclimate")
 
 ##Reads in the raster attribute data
-env3 <- brick("~/GIS/env_pred_3m.img",
+env3 <- brick("/Volumes/ib_working/GIS/env_pred_3m.img",
               crs=CRS("+proj=utm +zone=10 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
 env_names <-c("rough","can_ht","can_pct","elev","isolt","slope","srad","tci_max","tci","snow_melt",
               "ndvi","lidar_int","pond_stream","stream_dist")
@@ -22,12 +22,13 @@ env_titles <- c("Topographic Roughness","Canopy Ht. (m)","Canopy Cover (prop.)",
 names(env3) <- env_names
 
 ##Imports aspect data.
-env3$asp <- raster('~/GIS/MORA_aspect_3m.tif')
-env3$tri <- raster('~/GIS/MORA_TRI_3m.tif')
+env3$asp <- raster('/Volumes/ib_working/GIS/MORA_aspect_3m.tif')
+env3$tri <- raster('/Volumes/ib_working/GIS/MORA_TRI_3m.tif')
+env3$cold <- raster('/Volumes/ib_working/GIS/MORA_coldair_3m.tif')
 
 ##Reads in the coordinates of all of the microclimate sensors.
-setwd("~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/cleaned/")
-sensors <- read.csv("sensor_locations_updated_2_12_2013.csv")
+setwd("~/Dropbox/lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/")
+sensors <- read.csv("sensor_locations_updated_10-5-2014.csv")
 coordinates(sensors) <- ~Long+Lat
 sensors@data$Long <- coordinates(sensors)[,1]
 sensors@data$Lat <- coordinates(sensors)[,2]

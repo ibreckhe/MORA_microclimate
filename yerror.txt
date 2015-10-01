@@ -1,0 +1,15 @@
+
+    model{
+    ## Priors
+    alpha ~ dnorm(0, .001)
+    beta ~ dnorm(0, .001)
+    sdy ~ dunif(0, 100)
+    tauy <- 1 / (sdy * sdy)
+    
+    ## Likelihood
+    for (i in 1:n){
+    mu[i] <- alpha + beta * x[i]
+    y[i] ~ dnorm(mu[i], tauy)
+    }
+    }
+    
