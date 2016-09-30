@@ -17,7 +17,7 @@ fspp <- read.csv("Franklindata_1978_sppmatrix.csv")
 fspp$X <- gsub("\\s{2,}"," ",fspp$X)
 fnam <- read.csv("Franklindata_sppnames.csv")
 fspat <- read.csv("Franklindata_UTM.csv")
-fcovar <- read.csv("franklindata_utm_covars.csv")
+fcovar <- read.csv("../results/franklin_sites_microclimate.csv")
 ecospp <- read.table("./Melanie/ecol.dat.txt",sep="\t",header=TRUE)
 ecospp$plot.unique <- as.numeric(as.factor(paste(ecospp$PLOTNBR,ecospp$LAT,ecospp$LONG)))
 ecospp$plot.visit <- as.factor(paste(ecospp$plot.unique,ecospp$YEAR,sep="."))
@@ -47,7 +47,7 @@ fspp_mel2 <- melt(fspp_sum)[,-3]
 colnames(fspp_mel2) <- c("SITE","SPECIES","COVER")
 fspp_new <- dcast(fspp_mel2,formula=SITE~SPECIES)
 
-##Finds MORA species represented in at least 50 plots.
+##Finds MORA species represented in at least 5 plots.
 numplots <- colSums(fspp_new[,-1]>0.1)
 numplots_named <- merge(fnam2,data.frame(Code=names(numplots),n_plots=numplots))
 numplots_ord <- numplots_named[order(numplots_named$n_plots,decreasing=TRUE),]
@@ -303,9 +303,17 @@ write.csv(MORA_pres_abs_common,"MORA_pres_abs_common.csv",row.names=FALSE)
 # write.csv(fcovar_cit,"franklin_cit_covar_resid.csv",row.names=FALSE)
 
 ####Creates CIT based on all of the Franklin plots and species.####
-MORA_spp_covar <- merge(MORA_pres_abs_common,fcovar[,c("SITE","MAT","MAT_c","MORA_elev_3m","MORA_dry_index_81m_precip")])
-MORA_covar <- MORA_spp_covar[,c("SITE","MAT","MAT_c","MORA_elev_3m","MORA_dry_index_81m_precip")]
-MORA_spp <- MORA_spp_covar[,-c(which(colnames(MORA_spp_covar) %in% c("MAT","MAT_c","MORA_elev_3m","MORA_dry_index_81m_precip")))]
+fcovar$SITE <- paste(fcovar$SITE_NAME,fcovar$PLOT_NO,sep=" ")
+MORA_spp_covar <- merge(MORA_pres_abs_common,fcovar[,c("SITE","NVC.Association.as.determined.by.R..Crawford..see.notes.","utmx","utmy","tavg_est","tmax_est","tmin_est",
+                                                       "MAT","MAT_c","MORA_elev_3m","MORA_dry_index_81m_precip","MORA_coldair_index","MORA_can_vol_81m")])
+MORA_covar <- MORA_spp_covar[,c("SITE","NVC.Association.as.determined.by.R..Crawford..see.notes.","utmx","utmy","tavg_est","tmax_est","tmin_est",
+                                "MAT","MAT_c","MORA_elev_3m","MORA_dry_index_81m_precip","MORA_coldair_index","MORA_can_vol_81m")]
+MORA_spp <- MORA_spp_covar[,-c(which(colnames(MORA_spp_covar) %in% c("NVC.Association.as.determined.by.R..Crawford..see.notes.","utmx","utmy","tavg_est","tmax_est","tmin_est",
+                                                                     "MAT","MAT_c","MORA_elev_3m","MORA_dry_index_81m_precip","MORA_coldair_index","MORA_can_vol_81m")))]
+
+##Removes outlier plots that probably have junk coordinates.
+MORA_covar <- filter(MORA_covar,MORA_covar$SITE %nin% c("CORI 408","RAMP 505","W FO 304"))
+MORA_spp <- filter(MORA_spp,MORA_spp$SITE %nin% c("CORI 408","RAMP 505","W FO 304"))
 
 ##Separates training and testing plots.
 set.seed(42)
@@ -313,16 +321,36 @@ rand <- runif(n=dim(MORA_covar)[1],0,1)
 MORA_train_spp <- MORA_spp[rand > 0.9,]
 MORA_train_spp_long <- melt(MORA_train_spp)
 f_train <- merge(MORA_train_spp_long,MORA_covar,all.x = TRUE)
-colnames(f_train) <- c("SITE","SPECIES","PRES_ABS","WNA_MAT","PRSM_MAT","elev","dry")
+colnames(f_train) <- c("SITE","SPECIES","PRES_ABS","NVC_CLASS","UTM_X","UTM_Y","MICRO_MAT","MICRO_TMAX","MICRO_TMIN",
+                       "WNA_MAT","PRSM_MAT","elev","dry","cold","can_vol_81m")
 
 MORA_test_spp <- MORA_spp[rand <= 0.9,]
 MORA_test_spp_long <- melt(MORA_test_spp)
 f_test <- merge(MORA_test_spp_long,MORA_covar,all.x = TRUE)
-colnames(f_test) <- c("SITE","SPECIES","PRES_ABS","WNA_MAT","PRSM_MAT","elev","dry")
+colnames(f_test) <- c("SITE","SPECIES","PRES_ABS","NVC_CLASS","UTM_X","UTM_Y","MICRO_MAT","MICRO_TMAX","MICRO_TMIN",
+                       "WNA_MAT","PRSM_MAT","elev","dry","cold","can_vol_81m")
 
 MORA_spp_long <- melt(MORA_spp)
 f_all <- merge(MORA_spp_long,MORA_covar,all.x=TRUE)
-colnames(f_all) <- c("SITE","SPECIES","PRES_ABS","WNA_MAT","PRSM_MAT","elev","dry")
+colnames(f_all) <- c("SITE","SPECIES","PRES_ABS","NVC_CLASS","UTM_X","UTM_Y","MICRO_MAT","MICRO_TMAX","MICRO_TMIN",
+                      "WNA_MAT","PRSM_MAT","elev","dry","cold","can_vol_81m")
+
+##Scales full data for JAGS
+f_dry <- scale(f_all$dry)
+f_dry_scale <- attr(f_dry,"scaled:scale")
+f_dry_center <- attr(f_dry,"scaled:center")
+f_mat <- scale(f_all$MICRO_MAT)
+f_mat_scale <- attr(f_mat,"scaled:scale")
+f_mat_center <- attr(f_mat,"scaled:center")
+f_wmin <- scale(f_all$MICRO_TMIN)
+f_wmin_scale <- attr(f_wmin,"scaled:scale")
+f_wmin_center <- attr(f_wmin,"scaled:center")
+f_smax <- scale(f_all$MICRO_TMAX)
+f_smax_scale <- attr(f_smax,"scaled:scale")
+f_smax_center <- attr(f_smax,"scaled:center")
+f_sppnum <- as.numeric(as.factor(f_all$SPECIES))
+f_plotnum <- as.numeric(as.factor(f_all$SITE))
+f_y <- f_all$PRES_ABS
 
 ##Ensures training data are complete.
 f_train <- f_train[complete.cases(f_train),]
@@ -332,23 +360,13 @@ f_all <- f_all[complete.cases(f_all),]
 f_dry_train <- scale(f_train$dry)
 f_dry_train_scale <- attr(f_dry,"scaled:scale")
 f_dry_train_center <- attr(f_dry,"scaled:center")
-f_mat_train <- scale(f_train$PRSM_MAT)
+f_mat_train <- scale(f_train$MICRO_MAT)
 f_mat_train_scale <- attr(f_mat,"scaled:scale")
 f_mat_train_center <- attr(f_mat,"scaled:center")
 f_sppnum_train <- as.numeric(as.factor(f_train$SPECIES))
 f_plotnum_train <- as.numeric(as.factor(f_train$SITE))
 f_y_train <- f_train$PRES_ABS
 
-##Scales full data for JAGS
-f_dry <- scale(f_all$dry)
-f_dry_scale <- attr(f_dry,"scaled:scale")
-f_dry_center <- attr(f_dry,"scaled:center")
-f_mat <- scale(f_all$PRSM_MAT)
-f_mat_scale <- attr(f_mat,"scaled:scale")
-f_mat_center <- attr(f_mat,"scaled:center")
-f_sppnum <- as.numeric(as.factor(f_all$SPECIES))
-f_plotnum <- as.numeric(as.factor(f_all$SITE))
-f_y <- f_all$PRES_ABS
 
 # ## Fits the univariate model
 # nsamples <- 5000
@@ -359,14 +377,14 @@ f_y <- f_all$PRES_ABS
 # f.jags.out <- f.jags.sample$out
 
 ##Fits a model with two interacting variables
-nsamples <- 5000
+nsamples <- 10000
 f.jags.2var <- fit.jags.mixed.2var(y=f_y,x1=f_mat,x2=f_dry,
-                                     species=f_sppnum, thin=5,
+                                     species=f_sppnum, thin=10,
                                      plot=f_plotnum,nsamples=nsamples)
-save(f.jags.2var,file="franklindata_jagsoutput_2var.R",compress=TRUE)
-require(mcmcplots)
-mcmcplot(f.jags.2var$out,regex=c("\\.mu","\\.sigma","int","width","opt.g.x2"))
-load("franklindata_jagsoutput_2var.R")
+save(f.jags.2var,file="franklindata_jagsoutput_2var_microMAT3.R",compress=TRUE)
+#require(mcmcplots)
+#mcmcplot(f.jags.2var$out,regex=c("\\.mu","\\.sigma","int","width","opt.g.x2"))
+load("franklindata_jagsoutput_2var_microMAT3.R")
 
 ## Makes the function matrix for the interaction model
 f.jags.2var.out <- f.jags.2var$out
@@ -376,15 +394,15 @@ f.mat.2var <- make_fun_matrix_2var(f.jags.2var.out,n.samples=1000)
 ## Makes a function matrix for the median parameter estimates.
 f.mat.2var.med <- make_med_fun_matrix_2var(f.jags.2var.out)
 
-## Plots response curves for species.
+## Plots response curves for all species.
 require(fields)
-pdf("../results/Temp_Dry_Spp_Curves.pdf",width=10,height=10)
+pdf("../results/Temp_Dry_Spp_Curves_all_microMAT3.pdf",width=10,height=10)
 breaks <- seq(0,1,length.out=1001)
 cols <- rev(terrain.colors(length(breaks)-1))
 set.panel()
 par(mar=c(2,3,3,0),oma=c(3,3,0,10))
 set.panel(4,4)
-for(i in 1:16){
+for(i in 1:length(f.mat.2var.med)){
   x1_seq <- seq(-4,4,length.out=100)
   x2_seq <- seq(-4,4,length.out=100)
   x1_seq_un <- x1_seq * f_mat_scale + f_mat_center
@@ -395,7 +413,7 @@ for(i in 1:16){
         main=levels(as.factor(f_all$SPECIES))[i],breaks=breaks,col=cols)
 }
 set.panel()
-mtext(text="Mean Annual Temperature",side = 1,outer = TRUE,line=1,adj=0.6)
+mtext(text="Wet Season Min. Temperature",side = 1,outer = TRUE,line=1,adj=0.6)
 mtext(text="Topographic Dryness Index",side = 2,outer = TRUE,line=1)
 par(oma=c(0,10,0,1))
 image.plot(x=x1_seq_un,y=x2_seq_un,z=matrix(runif(length(x_grid$y),0,1),ncol=100),xlab="",ylab="",
@@ -403,13 +421,86 @@ image.plot(x=x1_seq_un,y=x2_seq_un,z=matrix(runif(length(x_grid$y),0,1),ncol=100
            legend.shrink=0.6,legend.args=list(text="Prob.",adj=-1))
 dev.off()
 
+##Computes MAT and dryness niche breadth for each species.
+nspp <- length(f.mat.2var.med)
+spp_bnds <- data.frame(spp=rep(NA,nspp),
+                  x1_opt=rep(NA,nspp),
+                  x1_lwr_bound=rep(NA,nspp),
+                  x1_upr_bound=rep(NA,nspp),
+                  x2_opt=rep(NA,nspp),
+                  x2_lwr_bound=rep(NA,nspp),
+                  x2_upr_bound=rep(NA,nspp))
+x1_seq <- seq(-10,10,by=0.005)
+x2_seq <- seq(-10,10,by=0.005)
+spp_pred <- expand.grid(x1=x1_seq,x2=x2_seq)
+print("Estimating niche breadth for species")
+for(i in 1:nspp){
+  print(print(paste(i,"of ",nspp)))
+  prob <- f.mat.2var.med[[i]](spp_pred$x1,spp_pred$x2)
+  x1_opt <- spp_pred$x1[which.max(prob)]
+  x2_opt <- spp_pred$x2[which.max(prob)]
+  x1_vect <- rep(x1_opt,length(x2_seq))
+  x2_vect <- rep(x2_opt,length(x1_seq))
+  x1_preds <- f.mat.2var.med[[i]](x1_seq,x2_vect)
+  x2_preds <- f.mat.2var.med[[i]](x1_vect,x2_seq)
+  x1_bounds <- c(opt=x1_opt,obs_intervals(x2_seq,x1_preds,threshold=0.1))
+  names(x1_bounds) <- paste("x1_",names(x1_bounds),sep="")
+  x2_bounds <- c(opt=x2_opt,obs_intervals(x1_seq,x2_preds,threshold=0.1))
+  names(x2_bounds) <- paste("x2_",names(x2_bounds),sep="")
+  spp_bnds[i,] <- c(spp=i,x1_bounds,x2_bounds)
+}
+
+##Gets predicted values back on the original scale.
+spp_bnds[,2:4] <- spp_bnds[,2:4] * f_mat_scale + f_mat_center
+spp_bnds[,5:7] <- spp_bnds[,5:7] * f_dry_scale + f_dry_center
+
+##Computes niche width
+spp_bnds$x1_width <- spp_bnds$x1_upr_bound - spp_bnds$x1_lwr_bound
+spp_bnds$x2_width <- spp_bnds$x2_upr_bound - spp_bnds$x2_lwr_bound
+
+##Adds species names
+f_all$SITE_NUM <- as.numeric(as.factor(f_all$SITE))
+f_all$SPECIES_NUM <- as.numeric(as.factor(f_all$SPECIES))
+spp_bnds <- left_join(spp_bnds,unique(data.frame(spp=f_all$SPECIES_NUM,SPECIES=f_all$SPECIES)))
+
+##Writes species-level estimates to disk.
+write.csv(spp_bnds,"../results/franklin_spp_bnds_microMAT3.csv",row.names=FALSE)
+
+##Plots distribution of niche optima and widths.
+pdf("../results/spp_MAT3_opt_tol.pdf",width=5,height=5)
+par(mfrow=c(1,1))
+plot(spp_bnds$x1_lwr_bound,spp_bnds$x1_opt,ylab="Species Optimum (MAT, C)",
+     xlab="Species Upper Bound (MAT, C)")
+abline(0,1,lyt=2)
+dev.off()
+
+
+##Computes species richness, average niche width, and niche diversity for each plot.
+f_all_bnds <- merge(f_all,spp_bnds,by.x="SPECIES_NUM",by.y="spp",all.x=TRUE)
+f_all_bnds <- f_all_bnds[f_all_bnds$PRES_ABS==1,]
+
+f_all_grp <- group_by(f_all_bnds,SITE,WNA_MAT,PRSM_MAT,elev,dry,SITE_NUM)
+f_plot_bnds <- summarise(f_all_grp,mat_opt_avg=mean(x1_opt),
+                                   mat_opt_sd=sd(x1_opt),
+                                   mat_width_avg=mean(x1_width),
+                                   mat_width_sd=sd(x1_width),
+                                   dry_opt_avg=mean(x2_opt),
+                                   dry_opt_sd=sd(x2_opt),
+                                   dry_width_avg=mean(x2_width),
+                                   dry_width_sd=sd(x2_width),
+                                   num_spp=length(unique(SPECIES.x)))
+
 ##Sets the dimensions of the output.
 nsamples <-1000
 nplots <- dim(MORA_spp)[1]
 
 ##Makes an array to hold outputs.
 f_CIT_samples <- matrix(NA,ncol=nsamples,nrow=nplots)
+f_CIT_lwr_samples <- matrix(NA,ncol=nsamples,nrow=nplots)
+f_CIT_upr_samples <- matrix(NA,ncol=nsamples,nrow=nplots)
 f_CID_samples <- matrix(NA,ncol=nsamples,nrow=nplots)
+f_CID_lwr_samples <- matrix(NA,ncol=nsamples,nrow=nplots)
+f_CID_upr_samples <- matrix(NA,ncol=nsamples,nrow=nplots)
 
 ##Loops through and calculates a CIT value for each sample.
 print("Computing CIT and CID for sample")
@@ -417,32 +508,49 @@ for(j in 1:nsamples){
   print(j)
   pred.fun <- make_combofun_2var(f.mat.2var,iteration=j)
   for(i in 1:nplots){
-    newx1 <- runif(1000,-5,5)
-    newx2 <- runif(1000,-5,5)
-    accepted <- sample_combo_2var(newx1,newx2,pred.fun,pres_vec=MORA_spp[i,-1])
+    newx1 <- runif(5000,-10,10)
+    newx2 <- runif(5000,-10,10)
+    accepted <- sample_combo_2var_bnds(newx1,newx2,pred.fun,pres_vec=MORA_spp[i,-1])
     f_CIT_samples[i,j] <- accepted[1]
-    f_CID_samples[i,j] <- accepted[2]
+    f_CIT_lwr_samples[i,j] <- accepted[2]
+    f_CIT_upr_samples[i,j] <- accepted[3]
+    f_CID_samples[i,j] <- accepted[4]
+    f_CID_lwr_samples[i,j] <- accepted[5]
+    f_CID_upr_samples[i,j] <- accepted[6]
   }
 }
 rownames(f_CIT_samples) <- MORA_spp$SITE
+rownames(f_CIT_lwr_samples) <- MORA_spp$SITE
+rownames(f_CIT_upr_samples) <- MORA_spp$SITE
 rownames(f_CID_samples) <- MORA_spp$SITE
+rownames(f_CID_lwr_samples) <- MORA_spp$SITE
+rownames(f_CID_upr_samples) <- MORA_spp$SITE
 
 
 ##Gets predicted values back on the original scale.
 f_CIT_samples_unscaled <- f_CIT_samples * f_mat_scale + f_mat_center
 f_CID_samples_unscaled <- f_CID_samples * f_dry_scale + f_dry_center
+f_CID_lwr_samples_unscaled <- f_CID_lwr_samples * f_dry_scale + f_dry_center
+f_CIT_lwr_samples_unscaled <- f_CIT_lwr_samples * f_mat_scale + f_mat_center
+f_CID_upr_samples_unscaled <- f_CID_upr_samples * f_dry_scale + f_dry_center
+f_CIT_upr_samples_unscaled <- f_CIT_upr_samples * f_mat_scale + f_mat_center
+
 
 ##Writes samples to disk.
-write.csv(f_CIT_samples_unscaled,"Franklindata_CIT_samples_all.csv")
-write.csv(f_CID_samples_unscaled,"Franklindata_CID_samples_all.csv")
+write.csv(f_CIT_samples_unscaled,"Franklindata_CIT_samples_all_micromat3.csv",row.names=TRUE)
+write.csv(f_CID_samples_unscaled,"Franklindata_CID_samples_all_micromat3.csv",row.names=TRUE)
+write.csv(f_CIT_lwr_samples_unscaled,"Franklindata_CIT_lwr_samples_all_micromat3.csv",row.names=TRUE)
+write.csv(f_CID_lwr_samples_unscaled,"Franklindata_CID_lwr_samples_all_micromat3.csv",row.names=TRUE)
+write.csv(f_CIT_upr_samples_unscaled,"Franklindata_CIT_upr_samples_all_micromat3.csv",row.names=TRUE)
+write.csv(f_CID_upr_samples_unscaled,"Franklindata_CID_upr_samples_all_micromat3.csv",row.names=TRUE)
 
 ##Reads them back in
-f_CIT_samples_unscaled <- read.csv("Franklindata_CIT_samples_all.csv")
-rownames(f_CIT_samples_unscaled) <- f_CIT_samples_unscaled$X
-f_CIT_samples_unscaled <- as.matrix(f_CIT_samples_unscaled[,-1])
-f_CID_samples_unscaled <- read.csv("Franklindata_CID_samples_all.csv")
-rownames(f_CID_samples_unscaled) <- f_CID_samples_unscaled$X
-f_CID_samples_unscaled <- as.matrix(f_CID_samples_unscaled[,-1])
+#f_CIT_samples_unscaled <- read.csv("Franklindata_CIT_samples_all_microMAT.csv")
+#rownames(f_CIT_samples_unscaled) <- f_CIT_samples_unscaled$X
+#f_CIT_samples_unscaled <- as.matrix(f_CIT_samples_unscaled[,-1])
+#f_CID_samples_unscaled <- read.csv("Franklindata_CID_samples_all_microMAT.csv")
+#rownames(f_CID_samples_unscaled) <- f_CID_samples_unscaled$X
+#f_CID_samples_unscaled <- as.matrix(f_CID_samples_unscaled[,-1])
 
 #Computes CIT and CID covariance.
 require(MASS)
@@ -460,29 +568,40 @@ for (i in 1:nplots){
 
 quant_fun <- function(x) quantile(x,probs = c(0.025,0.5,0.975),na.rm=FALSE)
 f_CIT_quants <- apply(f_CIT_samples_unscaled,FUN=quant_fun,MARGIN=1)
+f_CIT_lwr_quants <- apply(f_CIT_lwr_samples_unscaled,FUN=quant_fun,MARGIN=1)
+f_CIT_upr_quants <- apply(f_CIT_upr_samples_unscaled,FUN=quant_fun,MARGIN=1)
 f_CID_quants <- apply(f_CID_samples_unscaled,FUN=quant_fun,MARGIN=1)
+f_CID_lwr_quants <- apply(f_CID_lwr_samples_unscaled,FUN=quant_fun,MARGIN=1)
+f_CID_upr_quants <- apply(f_CID_upr_samples_unscaled,FUN=quant_fun,MARGIN=1)
 f_all_covar <- merge(MORA_spp,MORA_covar,all.x = TRUE)
-f_slopes <- merge(MORA_spp,slopes,all.x = TRUE)
+f_slopes <- merge(f_all_covar,slopes,all.x = TRUE)
 
 ##Computes number of species in each plot.
 n_spp <- rowSums(MORA_spp[,-1] > 0)
-f_CIT_all <- data.frame(cbind(f_all_covar$MAT,f_all_covar$MAT_c,f_all_covar$MORA_elev_3m,
-                              f_all_covar$MORA_dry_index_81m_precip,
-                              t(f_CIT_quants),t(f_CID_quants),f_slopes$CIT_CID_slope,
-                              f_slopes$CIT_CID_covar,n_spp))
-colnames(f_CIT_all) <- c("WNA_MAT","PRISM_MAT","Elev","Dry","CIT_lwr","CIT_med","CIT_upr",
-                         "CID_lwr","CID_med","CID_upr","CIT_CID_slope","CIT_CID_covar","nspp")
-f_CIT_all$DryFact <- cut(f_CIT_all$Dry,breaks=quantile(f_CIT_all$Dry,probs=c(0.01,0.25,0.5,0.75),na.rm=TRUE))
-f_CIT_all$ColdFact <- cut(f_CIT_all$PRISM_MAT,breaks=quantile(f_CIT_all$PRISM_MAT,probs=c(0.01,0.25,0.5,0.75),na.rm=TRUE))
+f_CIT_all <- data.frame(cbind(f_all_covar$SITE,as.character(f_all_covar$NVC.Association.as.determined.by.R..Crawford..see.notes.),f_all_covar$utmx,f_all_covar$utmy,
+                              f_all_covar$MAT,f_all_covar$MAT_c,f_all_covar$tavg_est,
+                              f_all_covar$tmin_est,f_all_covar$tmax_est,f_all_covar$MORA_elev_3m,
+                              f_all_covar$MORA_dry_index_81m_precip,f_all_covar$MORA_coldair_index,
+                              f_all_covar$MORA_can_vol_81m,f_slopes$CIT_CID_slope,f_slopes$CIT_CID_covar,
+                              t(f_CIT_quants),t(f_CID_quants),
+                              t(f_CIT_lwr_quants),t(f_CIT_upr_quants),
+                              t(f_CID_lwr_quants),t(f_CID_upr_quants)))
+colnames(f_CIT_all) <- c("Site","NVC_CLASS","UTM_X","UTM_Y","WNA_MAT","PRISM_MAT",
+                         "MicroMAT","MicroWintMin","MicroSumMax","Elev","Dry","Cold","Canvol",
+                         "CIT_CID_slope","CIT_CID_covar","CIT_lwr","CIT_med","CIT_upr",
+                         "CID_lwr","CID_med","CID_upr","CIT_min_lwr","CIT_min_med","CIT_min_upr",
+                         "CIT_max_lwr","CIT_max_med","CIT_max_upr","CID_min_lwr","CID_min_med","CID_min_upr",
+                         "CID_max_lwr","CID_max_med","CID_max_upr")
+f_CIT_covars <- merge(f_CIT_all,f_plot_bnds,by.x="Site",by.y="SITE",all.x=TRUE)
 
 ##Writes summary stats to disk.
-write.csv(f_CIT_all,"franklindata_CIT_CID_summary.csv",row.names=FALSE)
+write.csv(f_CIT_covars,"franklindata_CIT_CID_summary_micromat3.csv",row.names=FALSE)
 
 ##Plots distribution of covariances
-pdf("../results/CIT_CID_covar_density.pdf",width=6,height=6)
+pdf("../results/CIT_CID_covar_density_micromat3.pdf",width=6,height=6)
 ggplot(f_CIT_all)+
-  geom_point(aes(x=Elev,y=CIT_CID_covar,col=ColdFact))+
-  stat_smooth(aes(x=Elev,y=CIT_CID_covar),method="loess")+
+  geom_point(aes(x=Elev,y=as.numeric(CIT_CID_covar)))+
+  stat_smooth(aes(x=Elev,y=as.numeric(CIT_CID_covar)),method="loess")+
   scale_x_continuous(limits=c(400,2100))+
   scale_y_continuous(limits=c(-0.1,0.05))+
   theme_bw()
@@ -491,7 +610,7 @@ dev.off()
 ##Plots CID and CIT
 require(MASS)
 require(cluster)
-pdf("../results/CIT_CID_covar_lines.pdf",width=6,height=6)
+pdf("../results/CIT_CID_covar_lines_mat3.pdf",width=6,height=6)
 par(mfrow=c(1,1),mar=c(4,4,0,0),oma=c(1,1,1,1))
 cols <- rep(1,nplots)
 plot(f_CIT_samples[1,],f_CID_samples[1,],xlim=c(-3,3),ylim=c(-3,3),type="n",

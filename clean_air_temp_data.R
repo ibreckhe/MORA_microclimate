@@ -222,7 +222,7 @@ for (i in 1:length(airtemp_files)){
 }
 
 ## Checks to see if it worked.
-xlimits <- as.POSIXct(c("2009-8-17 00:00:00","2009-8-24 00:00:00"))
+xlimits <- as.POSIXct(c("2014-8-17 00:00:00","2014-8-24 00:00:00"))
 plot(series_list[[1]],
      ylim=c(-20,40),
      ylab=expression(paste("Temperature, ", degree, "C")),
@@ -249,7 +249,7 @@ for(i in 1:length(series_list_tz)){
 }
 
 ## Makes a nice figure.
-xlimits <- as.POSIXct(c("2014-10-1 00:00:00","2015-7-1 00:00:00"))
+xlimits <- as.POSIXct(c("2014-10-1 00:00:00","2014-12-1 00:00:00"))
 plot(series_list[[1]],
      ylim=c(-20,40),
      ylab=expression(paste("Temperature, ", degree, "C")),
@@ -271,7 +271,7 @@ axis.POSIXct(1, x=index(series_list[[i]]),labels = TRUE)
 axis(2, at=c(-20,-10,0,10,20,30,40),labels = TRUE)
 
 ## Exports cleaned time-series
-setwd("../cleaned_airtemp")
+setwd("../cleaned_airtemp2")
 for (i in 1:length(airtemp_files)){
   series <- series_list_tz[[i]]
   outdf <- data.frame(DATE=index(series),TEMP=series)
@@ -304,15 +304,15 @@ for (i in 1:length(airtemp_files)){
   ## Gets the logging interval.
   metadata[i,6] <- log_int <- as.numeric(index(series[2]) - index(series[1]))
 }
-write.csv(metadata,file="metadata2.txt",row.names=FALSE)
+write.csv(metadata,file="metadata3.txt",row.names=FALSE)
 
 ## Reads in cleaned metadata and adds geographic coordinates.
 setwd("../cleaned")
-meta_cleaned <- read.table("metadata_cleaned_7_2015.txt",header=TRUE,sep="\t")
+meta_cleaned <- read.table("metadata_cleaned_10_2015.txt",header=TRUE,sep="\t")
 meta_cleaned <- unique(meta_cleaned)
 meta_cleaned$DATE_MIN <- as.POSIXct(as.character(meta_cleaned$DATE_MIN),format="%m/%d/%y %H:%M")
 meta_cleaned$DATE_MAX <- as.POSIXct(as.character(meta_cleaned$DATE_MAX),format="%m/%d/%y %H:%M")
-sensor_locs <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/sensor_locations_updated_7-31-2015.csv")
+sensor_locs <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/sensor_locations_updated_10-12-2015.csv")
 sensor_locs$X <- as.numeric(as.character(sensor_locs$X))
 sensor_locs$Y <- as.numeric(as.character(sensor_locs$Y))
 sensor_locs$Long <- as.numeric(as.character(sensor_locs$Long))

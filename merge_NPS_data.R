@@ -1,0 +1,165 @@
+##Script to clean and merge NPS weather station data.
+
+library(xts)
+source("~/code/MORA_microclimate/air_temp_functions.R")
+setwd("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Rebecca/assembled/")
+
+cm_por <- read.csv("Camp_Muir_POR.csv")
+cm_por$Temp_C <- (5/9)*(cm_por$Temp_F - 32)
+date_txt <- paste(cm_por$Year,cm_por$Day,cm_por$Hour/100,sep="-")
+cm_por$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+cm_ts <- xts(cm_por$Temp_C,order.by=cm_por$datetime)
+cm_ts_cleaned <- remove_spikes(cm_ts,ts_lag=1,thresh=c(-5,5))
+cm_df_cleaned <- data.frame(datetime=index(cm_ts_cleaned),CM_Temp=cm_ts_cleaned)
+#write.csv(cm_df_cleaned,"../cleaned/CampMuir_airtemp_POR_cleaned.csv")
+
+cm_2014_2015 <- read.csv("Camp_Muir_2014_2015.csv")
+cm_2014_2015$Temp_C <- (5/9)*(cm_2014_2015$Temp_F - 32)
+cm_2014_2015$datetime <- as.POSIXct(cm_2014_2015$Date,format="%m/%d/%y %H:%M")
+cm_2014_2015_ts <- xts(cm_2014_2015$Temp_C,order.by=cm_2014_2015$datetime)
+cm_2014_2015_ts_cleaned <- remove_spikes(cm_2014_2015_ts,ts_lag=1,thresh=c(-5,5))
+cm_2014_2015_df_cleaned <- data.frame(datetime=index(cm_2014_2015_ts_cleaned),CM_Temp=cm_2014_2015_ts_cleaned)
+write.csv(cm_2014_2015_df_cleaned,"../cleaned/CampMuir_airtemp_2014_2015_cleaned.csv")
+cm_all <- rbind(cm_df_cleaned,cm_2014_2015_df_cleaned)
+
+oh_por <- read.csv("Ohanapecosh_POR.csv")
+date_txt <- paste(oh_por$Year,oh_por$Day,oh_por$Time/100,sep="-")
+oh_por$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+oh_ts <- xts(oh_por$Temp_C,order.by=oh_por$datetime)
+oh_ts_cleaned <- remove_spikes(oh_ts,ts_lag=1,thresh=c(-5,5))
+oh_df_cleaned <- data.frame(datetime=index(oh_ts_cleaned),OH_Temp=oh_ts_cleaned)
+write.csv(oh_df_cleaned,"../cleaned/Ohanapecosh_airtemp_POR_cleaned.csv")
+
+oh_2014_2015 <- read.csv("Ohanapecosh_2014_2015.csv")
+date_txt <- paste(oh_2014_2015$Year,oh_2014_2015$Day,oh_2014_2015$Time/100,sep="-")
+oh_2014_2015$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+oh_2014_2015_ts <- xts(oh_2014_2015$Temp_C,order.by=oh_2014_2015$datetime)
+oh_2014_2015_ts_cleaned <- remove_spikes(oh_2014_2015_ts,ts_lag=1,thresh=c(-5,5))
+oh_2014_2015_df_cleaned <- data.frame(datetime=index(oh_2014_2015_ts_cleaned),OH_Temp=oh_2014_2015_ts_cleaned,
+                                      row.names=1:length(oh_2014_2015_ts_cleaned))
+write.csv(oh_2014_2015_df_cleaned,"../cleaned/Ohanapecosh_airtemp_2014_2015_cleaned.csv")
+oh_all <- rbind(oh_df_cleaned,oh_2014_2015_df_cleaned)
+
+cr_por <- read.csv("Carbon_POR.csv")
+date_txt <- paste(cr_por$Year,cr_por$Day,cr_por$Time/100,sep="-")
+cr_por$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+cr_ts <- xts(cr_por$Temp_C,order.by=cr_por$datetime)
+cr_ts_cleaned <- remove_spikes(cr_ts,ts_lag=1,thresh=c(-5,5))
+cr_df_cleaned <- data.frame(datetime=index(cr_ts_cleaned),CR_Temp=cr_ts_cleaned)
+write.csv(cr_df_cleaned,"../cleaned/Carbon_River_airtemp_POR_cleaned.csv")
+
+cr_2014_2015 <- read.csv("Carbon_2014_2015.csv")
+date_txt <- paste(cr_2014_2015$Year,cr_2014_2015$Day,cr_2014_2015$Time/100,sep="-")
+cr_2014_2015$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+cr_2014_2015_ts <- xts(cr_2014_2015$Air.Temp.C,order.by=cr_2014_2015$datetime)
+cr_2014_2015_ts_cleaned <- remove_spikes(cr_2014_2015_ts,ts_lag=1,thresh=c(-5,5))
+cr_2014_2015_df_cleaned <- data.frame(datetime=index(cr_2014_2015_ts_cleaned),CR_Temp=cr_2014_2015_ts_cleaned,
+                                      row.names=1:length(cr_2014_2015_ts_cleaned))
+write.csv(cr_2014_2015_df_cleaned,"../cleaned/Carbon_River_airtemp_2014_2015_cleaned.csv")
+cr_all <- rbind(cr_df_cleaned,cr_2014_2015_df_cleaned)
+
+srb_por <- read.csv("Sunrise_Base_POR.csv")
+srb_por$Temp_C <- (5/9)*(srb_por$Temp_F - 32)
+date_txt <- paste(srb_por$Year,srb_por$Julian.Day,srb_por$Time/100,sep="-")
+srb_por$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+srb_ts <- xts(srb_por$Temp_C,order.by=srb_por$datetime)
+srb_ts_cleaned <- remove_spikes(srb_ts,ts_lag=1,thresh=c(-5,5))
+srb_df_cleaned <- data.frame(datetime=index(srb_ts_cleaned),SRB_Temp=srb_ts_cleaned)
+write.csv(srb_df_cleaned,"../cleaned/Sunrise_Base_airtemp_POR_cleaned.csv")
+
+srb_2013_2014 <- read.csv("Sunrise_Base_2013_2014.csv")
+srb_2013_2014$Temp_C <- (5/9)*(srb_2013_2014$Temp_F - 32)
+date_txt <- paste(srb_2013_2014$Year,srb_2013_2014$Julian.Day,srb_2013_2014$Time/100,sep="-")
+srb_2013_2014$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+srb_2013_2014_ts <- xts(srb_2013_2014$Temp_C,order.by=srb_2013_2014$datetime)
+srb_2013_2014_ts_cleaned <- remove_spikes(srb_2013_2014_ts,ts_lag=1,thresh=c(-5,5))
+srb_2013_2014_df_cleaned <- data.frame(datetime=index(srb_2013_2014_ts_cleaned),SRB_Temp=srb_2013_2014_ts_cleaned,
+                                       row.names=1:length(srb_2013_2014_ts_cleaned))
+write.csv(srb_2013_2014_df_cleaned,"../cleaned/Sunrise_Base_airtemp_2013_2014_cleaned.csv")
+
+srb_2014_2015 <- read.csv("Sunrise_Base_2014_2015.csv")
+srb_2014_2015$Temp_C <- (5/9)*(srb_2014_2015$Temp_F - 32)
+date_txt <- paste(srb_2014_2015$Year,srb_2014_2015$Day,srb_2014_2015$Hour/100,sep="-")
+srb_2014_2015$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+srb_2014_2015_ts <- xts(srb_2014_2015$Temp_C,order.by=srb_2014_2015$datetime)
+srb_2014_2015_ts_cleaned <- remove_spikes(srb_2014_2015_ts,ts_lag=1,thresh=c(-5,5))
+srb_2014_2015_df_cleaned <- data.frame(datetime=index(srb_2014_2015_ts_cleaned),SRB_Temp=srb_2014_2015_ts_cleaned,
+                                       row.names=1:length(srb_2014_2015_ts_cleaned))
+write.csv(srb_2014_2015_df_cleaned,"../cleaned/Sunrise_Base_airtemp_2014_2015_cleaned.csv")
+srb_all <- rbind(srb_df_cleaned,srb_2013_2014_df_cleaned,srb_2014_2015_df_cleaned)
+
+##Sunrise Ridge Station
+srw_por <- read.csv("Sunrise_Upper_POR.csv")
+srw_por$Temp_C <- (5/9)*(srw_por$Temp_F - 32)
+date_txt <- paste(srw_por$Year,srw_por$Julian.Day,srw_por$Hour/100,sep="-")
+srw_por$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+srw_ts <- xts(srw_por$Temp_C,order.by=srw_por$datetime)
+srw_ts_cleaned <- remove_spikes(srw_ts,ts_lag=1,thresh=c(-5,5))
+srw_df_cleaned <- data.frame(datetime=index(srw_ts_cleaned),SRW_Temp=srw_ts_cleaned)
+write.csv(srw_df_cleaned,"../cleaned/Sunrise_Wind_airtemp_POR_cleaned.csv")
+
+srw_2014_2015 <- read.csv("Sunrise_Upper_2014_2015.csv")
+srw_2014_2015$Temp_C <- (5/9)*(srw_2014_2015$Temp_F - 32)
+date_txt <- paste(srw_2014_2015$Year,srw_2014_2015$Julian,srw_2014_2015$Hour/100,sep="-")
+srw_2014_2015$datetime <- as.POSIXct(date_txt,format="%Y-%j-%H")
+srw_2014_2015_ts <- xts(srw_2014_2015$Temp_C,order.by=srw_2014_2015$datetime)
+srw_2014_2015_ts_cleaned <- remove_spikes(srw_2014_2015_ts,ts_lag=1,thresh=c(-5,5))
+srw_2014_2015_df_cleaned <- data.frame(datetime=index(srw_2014_2015_ts_cleaned),SRW_Temp=srw_2014_2015_ts_cleaned,
+                                       row.names=1:length(srw_2014_2015_ts_cleaned))
+write.csv(srw_df_cleaned,"../cleaned/Sunrise_Wind_airtemp_2014_2015_cleaned.csv")
+srw_all <- rbind(srw_df_cleaned,srw_2014_2015_df_cleaned)
+
+all_ts_hrs <- seq(as.POSIXct("2006-09-06 00:00"),as.POSIXct("2015-10-15 10:00"),by="hour")
+all_hrs_df <- data.frame(datetime=all_ts_hrs)
+all_hrs_cm <- merge(all_hrs_df,cm_all,all.x=TRUE)
+all_hrs_oh <- merge(all_hrs_cm,oh_all,all.x=TRUE)
+all_hrs_cr <- merge(all_hrs_oh,cr_all,all.x=TRUE)
+all_hrs_srb <- merge(all_hrs_cr,srb_all,all.x=TRUE)
+all_hrly <- merge(all_hrs_srb,srw_all,all.x=TRUE)
+colnames(all_hrly) <- c("datetime","CampMuir","Ohanapecosh","CarbonRiver","SunriseBase","SunriseWind")
+write.csv(all_hrly,"../cleaned/airtemp_NPS_hourly.csv")
+
+all_hrly_ts <- xts(x=all_hrly[,-1],order.by=all_hrly$datetime)
+days <- seq(as.POSIXct("2006-09-06 00:00"),as.POSIXct("2015-10-15 00:00"),by="day")
+all_daily_max <- matrix(NA,nrow=length(days),ncol=ncol(all_hrly_ts))
+all_daily_min <- matrix(NA,nrow=length(days),ncol=ncol(all_hrly_ts))
+all_daily_mean <- matrix(NA,nrow=length(days),ncol=ncol(all_hrly_ts))
+for(i in 1:ncol(all_hrly_ts)){
+  all_daily_max[,i] <- apply.daily(all_hrly_ts[,i],FUN=max)
+  all_daily_min[,i] <- apply.daily(all_hrly_ts[,i],FUN=min)
+  all_daily_mean[,i] <- apply.daily(all_hrly_ts[,i],FUN=mean)
+}
+all_daily_tmax <- data.frame(days,all_daily_max)
+colnames(all_daily_tmax) <- c("datetime","CampMuir","Ohanapecosh","CarbonRiver","SunriseBase","SunriseWind")
+all_daily_tmin <- data.frame(days,all_daily_min)
+colnames(all_daily_tmin) <- c("datetime","CampMuir","Ohanapecosh","CarbonRiver","SunriseBase","SunriseWind")
+all_daily_tavg <- data.frame(days,all_daily_mean)
+colnames(all_daily_tavg) <- c("datetime","CampMuir","Ohanapecosh","CarbonRiver","SunriseBase","SunriseWind")
+
+write.csv(all_daily_tmax,"../cleaned/airtemp_NPS_daily_tmax.csv",row.names=FALSE)
+write.csv(all_daily_tmin,"../cleaned/airtemp_NPS_daily_tmin.csv",row.names=FALSE)
+write.csv(all_daily_tavg,"../cleaned/airtemp_NPS_daily_tavg.csv",row.names=FALSE)
+
+start <- as.POSIXct("2013-8-01")
+end <- as.POSIXct("2013-10-30")
+all_daily_tmax_ts <- xts(x=as.matrix(all_daily_tmax[,-1]),order.by=all_daily_tmax[,1])
+all_daily_tmin_ts <- xts(x=as.matrix(all_daily_tmin[,-1]),order.by=all_daily_tmin[,1])
+all_daily_tavg_ts <- xts(x=as.matrix(all_daily_tavg[,-1]),order.by=all_daily_tavg[,1])
+
+plot(all_daily_tmax_ts[,1],lty=1,xlim=c(start,end),ylim=c(-20,40))
+points(all_daily_tmax_ts[,2],col=2,lty=1,type="l")
+points(all_daily_tmax_ts[,3],col=3,lty=1,type="l")
+points(all_daily_tmax_ts[,4],col=4,lty=1,type="l")
+
+##Visualizes all data.
+library(fields)
+plotmat <- as.matrix(all_daily_tmin[,-1])
+x <- all_daily_tmax$datetime
+y <- 1:5
+
+par(mrow)
+plot(x,rep(NA,length(x)),ylim=c(0,5),axes=FALSE,xlab="",ylab="")
+axis.POSIXct(1,at=x)
+axis(2,at=y,las=1,line=FALSE,
+     labels=c("CampMuir","Ohanapecosh","CarbonRiver","SunriseBase","SunriseWind"))
+image.plot(x=x,y=y,z=plotmat,add=TRUE,legend.width=3)

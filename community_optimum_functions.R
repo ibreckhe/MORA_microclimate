@@ -96,37 +96,37 @@ fit.jags.mixed.2var <- function(x1,x2,y,species,plot,nsamples=10000,thin=50){
     "
     model{
     # priors
-    height.mu ~ dnorm(0,0.01)
+    height.mu ~ dnorm(0,0.1)
     height.sigma ~ dunif(0,5)
     height.tau <-  pow(height.sigma, -2)
-    width.mu ~ dnorm(-1.5,0.1)T(,-0.1)
+    width.mu ~ dnorm(-1.5,0.1)T(,-0.01)
     width.sigma ~ dunif(0.001,10)
     width.tau <- pow(width.sigma,-2)
-    opt.mu ~ dnorm(0,0.001)
-    opt.sigma ~ dunif(0.01,100)
+    opt.mu ~ dnorm(0,0.1)
+    opt.sigma ~ dunif(0.001,10)
     opt.tau <- pow(opt.sigma,-2)
 
     width.mu.x2 ~ dnorm(-0.2,0.1)T(,-0.01)
-    width.sigma.x2 ~ dunif(0.1,10)
+    width.sigma.x2 ~ dunif(0.01,10)
     width.tau.x2 <- pow(width.sigma.x2,-2)
-    opt.mu.x2 ~ dnorm(0,0.001)
-    opt.sigma.x2 ~ dunif(0.001,4)
+    opt.mu.x2 ~ dnorm(0,0.1)
+    opt.sigma.x2 ~ dunif(0.001,10)
     opt.tau.x2 <- pow(opt.sigma.x2,-2)
 
-    int.mu ~ dnorm(0,0.001)
-    int.sigma ~ dunif(0.1,10)
+    int.mu ~ dnorm(0,10)
+    int.sigma ~ dunif(0.001,2)
     int.tau <- pow(int.sigma,-2)
 
-    plot.sigma ~ dunif(0.01,20)
+    plot.sigma ~ dunif(0.001,20)
     plot.tau <- pow(opt.sigma,-2)
     
     for (j in 1:ngroups){
-      opt.g[j] ~ dnorm(opt.mu, opt.tau)T(-4.5,4.5)
+      opt.g[j] ~ dnorm(opt.mu, opt.tau)T(-4,4)
       width.g[j] ~ dnorm(width.mu, width.tau)T(,-0.1)
       height.g[j] ~ dnorm(height.mu,height.tau)
-      opt.g.x2[j] ~ dnorm(opt.mu.x2, opt.tau.x2)
-      width.g.x2[j] ~ dnorm(width.mu.x2, width.tau.x2)T(,-0.01)
-      int.g[j] ~ dnorm(int.mu,int.tau)
+      opt.g.x2[j] ~ dnorm(opt.mu.x2, opt.tau.x2)T(-4,4)
+      width.g.x2[j] ~ dnorm(width.mu.x2, width.tau.x2)T(,-0.1)
+      int.g[j] ~ dnorm(int.mu,int.tau)T(-0.5,0.5)
     }
     
     for (k in 1:nplots){
@@ -157,8 +157,9 @@ fit.jags.mixed.2var <- function(x1,x2,y,species,plot,nsamples=10000,thin=50){
   out <- coda.samples(mod, c("height.mu","opt.mu","opt.sigma","width.mu","width.sigma","opt.mu.x2","opt.sigma.x2","width.mu.x2",
                              "width.sigma.x2","int.mu","int.sigma","opt.g","opt.g.x2","width.g","width.g.x2","int.g","height.g"),
                       n.iter=nsamples,thin=thin)
+  dic <- dic.samples(mod,type="pD",n.iter=10000,thin=10)
   #diags <- gelman.diag(out)
-  return(list(mod=mod,out=out))
+  return(list(mod=mod,out=out,dic=dic))
   }
 
 ####Gets credible intervals for the parameters of interest.####
@@ -227,12 +228,12 @@ make_fun_matrix_2var <- function(jags.out,par.names=c("width.g","opt.g","height.
     pname4 <- paste(par.names[4],"[",j,"]",sep="")
     pname5 <- paste(par.names[5],"[",j,"]",sep="")
     pname6 <- paste(par.names[6],"[",j,"]",sep="")
-    p1.gr <- gg.sample[gg.sample$Parameter == pname1,4]
-    p2.gr <- gg.sample[gg.sample$Parameter == pname2,4]
-    p3.gr <- gg.sample[gg.sample$Parameter == pname3,4]
-    p4.gr <- gg.sample[gg.sample$Parameter == pname4,4]
-    p5.gr <- gg.sample[gg.sample$Parameter == pname5,4]
-    p6.gr <- gg.sample[gg.sample$Parameter == pname6,4]
+    p1.gr <- gg.sample[gg.sample$Parameter == pname1,4]$value
+    p2.gr <- gg.sample[gg.sample$Parameter == pname2,4]$value
+    p3.gr <- gg.sample[gg.sample$Parameter == pname3,4]$value
+    p4.gr <- gg.sample[gg.sample$Parameter == pname4,4]$value
+    p5.gr <- gg.sample[gg.sample$Parameter == pname5,4]$value
+    p6.gr <- gg.sample[gg.sample$Parameter == pname6,4]$value
     np <- length(p6.gr)
     fun.body <- paste(rep("antilogit(",np),p1.gr,rep(" * (x1 - ",np),p2.gr,rep(")^2 + ",np),
                       p4.gr,rep(" * (x2 - ",np),p5.gr,rep(")^2 + ",np),
@@ -259,12 +260,12 @@ make_med_fun_matrix_2var <- function(jags.out,par.names=c("width.g","opt.g","hei
     pname4 <- paste(par.names[4],"[",j,"]",sep="")
     pname5 <- paste(par.names[5],"[",j,"]",sep="")
     pname6 <- paste(par.names[6],"[",j,"]",sep="")
-    p1.gr <- quantile(gg.out[gg.out$Parameter == pname1,4],probs=c(0.5))
-    p2.gr <- quantile(gg.out[gg.out$Parameter == pname2,4],probs=c(0.5))
-    p3.gr <- quantile(gg.out[gg.out$Parameter == pname3,4],probs=c(0.5))
-    p4.gr <- quantile(gg.out[gg.out$Parameter == pname4,4],probs=c(0.5))
-    p5.gr <- quantile(gg.out[gg.out$Parameter == pname5,4],probs=c(0.5))
-    p6.gr <- quantile(gg.out[gg.out$Parameter == pname6,4],probs=c(0.5))
+    p1.gr <- quantile(gg.out[gg.out$Parameter == pname1,4]$value,probs=c(0.5))
+    p2.gr <- quantile(gg.out[gg.out$Parameter == pname2,4]$value,probs=c(0.5))
+    p3.gr <- quantile(gg.out[gg.out$Parameter == pname3,4]$value,probs=c(0.5))
+    p4.gr <- quantile(gg.out[gg.out$Parameter == pname4,4]$value,probs=c(0.5))
+    p5.gr <- quantile(gg.out[gg.out$Parameter == pname5,4]$value,probs=c(0.5))
+    p6.gr <- quantile(gg.out[gg.out$Parameter == pname6,4]$value,probs=c(0.5))
     np <- length(p6.gr)
     fun.body <- paste(rep("antilogit(",np),p1.gr,rep(" * (x1 - ",np),p2.gr,rep(")^2 + ",np),
                       p4.gr,rep(" * (x2 - ",np),p5.gr,rep(")^2 + ",np),
@@ -333,6 +334,30 @@ sample_combo_2var <- function(newx1,newx2,combo_fun,pres_vec){
   newx_accept <- newx[sample(1:dim(newx)[1],size=1,prob=pred.prob,replace=FALSE),]
 
   return(newx_accept)
+}
+
+##Samples from the joint probability functions to find site temp and dryness optima and thresholds 
+##using rejection sampling.
+sample_combo_2var_bnds <- function(newx1,newx2,combo_fun,pres_vec,lwr_prob=0.05,upr_prob=0.95){
+  
+  ## Binds newx1 and newx2.
+  newx <- cbind(newx1,newx2)
+  
+  ## Generates predicted probability.
+  pred.prob <- combo_fun(newx1,newx2,pres_vec,nx=length(newx1))
+  
+  ## Samples rows with probability p.
+  newx_accept <- newx[sample(1:dim(newx)[1],size=1000,prob=pred.prob,replace=TRUE),]
+  
+  ## Computes quantiles.
+  newx1_bounds <- quantile(newx_accept[,1],probs=c(lwr_prob,0.5,upr_prob))
+  newx2_bounds <- quantile(newx_accept[,2],probs=c(lwr_prob,0.5,upr_prob))
+  
+  ## Labels output
+  out_sample <- c(newx1_bounds,newx2_bounds)
+  names(out_sample) <- c("x1_lwr","x1_med","x1_upr","x2_lwr","x2_med","x2_upr")
+  
+  return(out_sample)
 }
 
 ##Plot parameter estimates
@@ -432,3 +457,40 @@ ellipse_majoraxis <- function(ellipse){
   int <- slope * (0 - center[1]) + center[2]
   return(c(intercept=int,slope=slope))
 }
+
+# Function to find the values that define 68.4% of the area under the curve.####
+obs_intervals <- function(x,y,threshold=0.025){
+  
+  # Temporary variables.
+  dss <- x
+  pred <- y
+  
+  # Gets the bin width from the first pred interval.
+  bin_width <- dss[2] - dss[1]
+  
+  # Assume all NA predictions are zero
+  pred[is.na(pred)] <- 0
+  
+  # Total area under the curve.
+  total_area <- sum(pred*bin_width,na.rm=TRUE)
+  
+  # Computes cumulative proportions in both directions
+  cumprop_up <- cumsum(pred)*bin_width/total_area
+  cumprop_down <- rev(cumsum(rev(pred))*bin_width)/total_area
+  
+  # Finds the indices of the first and last values greater than 0.158
+  lwr_index <- min(which(cumprop_up >= threshold))
+  upr_index <- max(which(cumprop_down >= threshold))
+  
+  # Finds the corresponding values of dss.
+  lwr_bound <- dss[lwr_index]
+  upr_bound <- dss[upr_index]
+  bounds <- c(lwr_bound,upr_bound)
+  names(bounds) <- c("lwr_bound","upr_bound")
+  
+  # Output
+  return(bounds)
+}
+
+##Function to calculate the climate niche breadth
+#spp_niche_breadth <- function(fun_mat,spp_num)

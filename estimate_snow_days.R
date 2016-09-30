@@ -49,7 +49,7 @@
 ##Loads required packages
 library(data.table)
 
-file.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled"
+file.directory <- "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled2"
 setwd(file.directory)
 files <- list.files(pattern=".csv$")  # the data files for each temperature sensor to be analyzed
 meta <- read.table("metadata.txt",sep=",",header=TRUE)
@@ -58,8 +58,8 @@ meta <- read.table("metadata.txt",sep=",",header=TRUE)
 # CleanData/Microclimate_working/HoboIbuttonDatabase.csv', na.strings=c('', 'n/a')) # Import calibration file.  Replace
 # blank and n/a values with NA's
 
-figure.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/figs"
-output.directory <- "~/Dropbox/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/processed/"
+figure.directory <- "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/figs/"
+output.directory <- "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/processed/"
 
 # # For MAC file.directory <- '~/Dropbox/Seeds&Seedlings(Steve)/R code - Seeds and Seedlings/Data - HOBO Spring 2013'
 # setwd(file.directory) files <- list.files() # the data files for each temperature sensor to be analyzed # calib.file <-
@@ -76,6 +76,7 @@ year <- c()
 snow_appearance_date <- c()
 snow_disappearance_date <- c()
 snow_cover_duration <- c()  # in days
+minimum_soil_temp <- c()
 
 # start the clock to record how long the code takes to run
 start_t <- Sys.time()
@@ -98,7 +99,8 @@ for (k in 1:nfiles) {
     names(d)[2] <- "MONTH"
     names(d)[3] <- "DAY"
     names(d)[4] <- "HOUR"
-    names(d)[5] <- "TEMP"
+    names(d)[5] <- "MIN"
+    names(d)[6] <- "TEMP"
     
     d$Date <- as.Date(paste(d$MONTH, "/", d$DAY, "/", d$YEAR, sep = ""), format = "%m/%d/%Y")
     d$DOY <- as.numeric(format(d$Date, format = "%j"))  # find the unique days
@@ -155,6 +157,7 @@ for (k in 1:nfiles) {
     snow_appearance_date[k] <- as.character(min(d.snow$date))  # first day when snow covered sensor
     snow_disappearance_date[k] <- as.character(max(d.snow$date))  # last day when snow covered sensor
     snow_cover_duration[k] <- sum(d.snow$snow)  #'snow cover duration' the total number of days with snow cover
+    minimum_soil_temp[k] <- min(d$TEMP,na.rm=TRUE) #Winter minimum soil temperature
   
     
     ## PLOT SOIL TEMPERATURE AND THE SNOW COVER ALGORITHm OUTPUT TO MAKE SURE OUTPUT IS REASONABLE
@@ -205,20 +208,23 @@ output <- data.frame(files,
                      calibration, 
                      snow_appearance_date, 
                      snow_disappearance_date,
-                     snow_cover_duration)
+                     snow_cover_duration,
+                     minimum_soil_temp)
 
 ##Match the snow cover information to the sensor metadata.
-out_merged <- merge(meta,output,by.x="out_filename",by.y="files",all.x=T)
+out_merged <- unique(merge(meta,output,by.x="out_filename",by.y="files",all.x=T))
 
 ##Data quality flags:
-out_merged$flag_sensor_fail <- (as.Date(out_merged$snow_disappearance_date) - as.Date(out_merged$date_max)) >= -1
+end_doy <- as.numeric(format(as.Date(out_merged$date_max),format="%j"))
+out_merged$flag_sensor_fail <- ((as.Date(out_merged$snow_disappearance_date) - as.Date(out_merged$date_max)) >= -1) & end_doy < 152 
 out_merged$flag_temp_high <- out_merged$temp_max > 90
 out_merged$flag_temp_low <- out_merged$temp_min < -30
 out_merged$flag_high_calib <- out_merged$calibration >= 2 | out_merged$calibration <= -2
-out_merged$flag_no_snow <- out_merged$snow_cover_duration <= 15
-out_merged$flagged <- with(out_merged, flag_sensor_fail | flag_temp_high | flag_temp_low | flag_high_calib | flag_no_snow)
+out_merged$flag_no_snow <- out_merged$snow_cover_duration <= 3
+out_merged$flag_short_record <- as.Date(out_merged$date_max) -  as.Date(out_merged$date_min) < 100
+out_merged$flagged <- with(out_merged, flag_sensor_fail | flag_temp_high | flag_temp_low | flag_high_calib | flag_no_snow | flag_short_record)
 
-##Moves .csv and .pdf graphics of flagged files to a new directories
+##Moves .csv and .pdf graphics of flagged files to new directories
 out_flagged <- out_merged[out_merged$flagged==TRUE,]
 flagged_csvs <- out_flagged$out_filename
 setwd(output.directory)
@@ -246,4 +252,17 @@ out_unflagged<- out_merged[out_merged$flagged==FALSE,]
 # Save output file
 setwd(output.directory)
 write.table(out_unflagged, file = "Snow_cover_meta_cleaned.csv", sep = ",", row.names = FALSE)
- 
+
+####Adds geographic coordinates to the data.
+meta_cleaned <- read.csv("Snow_cover_meta_cleaned_10_16_2015.csv")
+meta_geo <- read.csv("../raw/sensor_locations_updated_10-16-2015.csv")
+
+##Merges data.
+meta_cleaned_geo <- merge(meta_cleaned,meta_geo,by.y="combined_1",by.x="site_sensor",all.x=TRUE)
+
+##Writes data to disk.
+write.csv(meta_cleaned_geo,"Snow_cover_meta_cleaned_geo_10_16_2015.csv",row.names=FALSE)
+
+
+
+

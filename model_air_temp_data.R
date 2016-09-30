@@ -6,12 +6,14 @@
 
 ## Loads required packages.
 library(raster)
-library(spBayes)
+#library(spBayes)
 library(MBA)
 library(geoR)
 library(plotrix)
 library(fields)
 library(boot)
+library(foreach)
+library(doParallel)
 
 ## Sources my functions.
 source("~/code/MORA_microclimate/air_temp_functions.R")
@@ -27,112 +29,471 @@ fsites <- fsites[complete.cases(fsites),]
 fsites$SITE <- paste(fsites$SITE_NAME,fsites$PLOT_NO,sep="")
 fsites <- fsites[order(fsites$SITE),]
 
-prism <- read.csv("PRISM_daily_2004_2015.csv")
-prism$DATE <- as.POSIXct(prism$DATE)
+prism <- read.csv("PRISM_daily_1_2004_9_2015.csv")
+prism$DATE <- as.Date(prism$DATE)
 
 topowx_tmax_rast <- brick("topowx_tmax_2004-2012.grd")
 topowx_tmin_rast <- brick("topowx_tmin_2004-2012.grd")
 
 setwd("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/cleaned_dailyair/")
 tavg <- read.csv("alldat_daily_tavg_2006_2015.csv")
-tavg$DATE <- as.POSIXct(tavg$DATE)
+tavg$DATE <- as.Date(tavg$DATE)+1
 tmax <- read.csv("alldat_daily_tmax_2006_2015.csv")
-tmax$DATE <- as.POSIXct(tmax$DATE)
+tmax$DATE <- as.Date(tmax$DATE)+1
 tmin <- read.csv("alldat_daily_tmin_2006_2015.csv")
-tmin$DATE <- as.POSIXct(tmin$DATE)
-meta <- read.csv("/Users/ian/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/site_metadata.csv")
-meta$alt_code <- gsub(pattern="-",replacement=".",x=meta$location,fixed=TRUE)
+tmin$DATE <- as.Date(tmin$DATE)+1
+meta <- read.csv("/Users/ian/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/airtemp_sensor_metadata_2016.csv")
+meta$alt_code <- gsub(pattern="-",replacement=".",x=meta$combined_1,fixed=TRUE)
+
+##Reads in NPS and MesoWest data.
+tavg_ws <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_NPS_MesoWest/MW_NPS_AlpineLakes_cleaned_daily_tavg.csv")
+colnames(tavg_ws)[1] <- "DATE"
+tavg_ws <- tavg_ws[,-which(colnames(tavg_ws)=="TEMP")]
+tavg_ws$DATE <- as.Date(tavg_ws$DATE)
+tmin_ws <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_NPS_MesoWest/MW_NPS_AlpineLakes_cleaned_daily_tmin.csv")
+colnames(tmin_ws)[1] <- "DATE"
+tmin_ws <- tmin_ws[,-which(colnames(tmin_ws)=="TMIN")]
+tmin_ws$DATE <- as.Date(tmin_ws$DATE)
+tmax_ws <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled_NPS_MesoWest/MW_NPS_AlpineLakes_cleaned_daily_tmax.csv")
+colnames(tmax_ws)[1] <- "DATE"
+tmax_ws <- tmax_ws[,-which(colnames(tmax_ws)=="TMAX")]
+tmax_ws$DATE <- as.Date(tmax_ws$DATE)
+
+##Merges MesoWest and iButton data.
+tavg <- merge(tavg,tavg_ws,all.x=TRUE,by="DATE")
+tmin <- merge(tmin,tmin_ws,all.x=TRUE,by="DATE")
+tmax <- merge(tmax,tmax_ws,all.x=TRUE,by="DATE")
 
 ibut_date_range <- c(min(tavg$DATE),max(tavg$DATE))
 
 ##Drops experiment site outside of study area.
-exp_pos <- which(colnames(tavg)=="TAHO.EXP.A1")
+exp_pos <- which(colnames(tavg) %in% c("TAHO.EXP.A1","POL.EXP.A1"))
 tavg <- tavg[,-c(exp_pos)]
 tmin <- tmin[,-c(exp_pos)]
 tmax <- tmax[,-c(exp_pos)]
 
+##Writes merged data to disk.
+write.csv(tavg,"../cleaned/tavg_daily_all_stations_2009_2015.csv",row.names=FALSE)
+write.csv(tmin,"../cleaned/tmin_daily_all_stations_2009_2015.csv",row.names=FALSE)
+write.csv(tmax,"../cleaned/tmax_daily_all_stations_2009_2015.csv",row.names=FALSE)
+
+
 #### Data exploration: what does the pattern of spatial dependence look like? ####
 
-##Makes an image plot showing the temperature anomaly at each sensor at each day.
-pdf("../results/data_matrix.pdf",width=8,height=10)
-ncols <- dim(tavg[,-1])[2]
-par(mfrow=c(1,1),mar=c(4,6,1,7),oma=c(1,1,1,1),xpd=TRUE)
-image(x=tavg$DATE,y=1:ncols,z=as.matrix(tavg[,-1]),axes=FALSE,
-      xlab="",ylab="",col=rainbow(100))
-axis(side=2,at=1:ncols,labels=FALSE)
-axis.POSIXct(at=seq(as.Date("2007-01-01"),as.Date("2015-01-01"),by="year"),side=1)
-image.plot(x=1:dim(tavg)[1],y=1:ncols,z=as.matrix(tavg[,-1]),yaxt="n",
-           xlab="",ylab="",legend.only=TRUE)
-text(x=as.numeric(min(tavg$DATE))-0.3e7,
-     y=1:dim(tavg[,-1])[2],cex=0.6,pos=2,
-     labels=colnames(tavg[,-1]))
-segments(x0=as.numeric(min(tavg$DATE)),x1=as.numeric(max(tavg$DATE)),
-         y0=1:ncols,y1=1:ncols,lty=3,col=rgb(0.2,0.2,0.2,0.2,0.8))
-dev.off()
-
-##Plots relationships between predictors.
-pdf("../results/covar_pairs.pdf",width=5,height=5)
-pairs(~asin(meta$ccov_81m)+meta$elev_9m+meta$relev_729m,
-      labels=c("asin(Can. \n Cover)","Elev.\n (m)","Relev.\nElev."),
-      cex.labels=1)
-dev.off()
+# ##Makes an image plot showing the temperature anomaly at each sensor at each day.
+# pdf("../results/data_matrix_2015.pdf",width=8,height=10)
+# ncols <- dim(tavg[,-1])[2]
+# par(mfrow=c(1,1),mar=c(4,6,1,7),oma=c(1,1,1,1),xpd=TRUE)
+# image(x=tavg$DATE,y=1:ncols,z=as.matrix(tavg[,-1]),axes=FALSE,
+#       xlab="",ylab="",col=rainbow(100))
+# axis(side=2,at=1:ncols,labels=FALSE)
+# axis.POSIXct(at=seq(as.Date("2007-01-01"),as.Date("2016-01-01"),by="year"),side=1)
+# image.plot(x=1:dim(tavg)[1],y=1:ncols,z=as.matrix(tavg[,-1]),yaxt="n",
+#            xlab="",ylab="",legend.only=TRUE)
+# text(x=as.numeric(min(tavg$DATE))-0.3e7,
+#      y=1:dim(tavg[,-1])[2],cex=0.6,pos=2,
+#      labels=colnames(tavg[,-1]))
+# segments(x0=as.numeric(min(tavg$DATE)),x1=as.numeric(max(tavg$DATE)),
+#          y0=1:ncols,y1=1:ncols,lty=3,col=rgb(0.2,0.2,0.2,0.2,0.8))
+# dev.off()
+# 
+# ##Plots relationships between predictors.
+# pdf("../results/covar_pairs.pdf",width=5,height=5)
+# pairs(~asin(meta$ccov_81m)+meta$elev_9m+meta$relev_729m,
+#       labels=c("asin(Can. \n Cover)","Elev.\n (m)","Relev.\nElev."),
+#       cex.labels=1)
+# dev.off()
 
 #Temporal bounds of the analysis
-start_date <- as.POSIXct("2010-7-1")
-end_date <- as.POSIXct("2015-7-1")
+start_date <- as.Date("2009-9-01")
+end_date <- as.Date("2015-9-30")
 
 start_num <- which(tavg$DATE == start_date)
 end_num <- which(tavg$DATE == end_date)
 
-
+start_num_prism <- which(prism$DATE == start_date)
+end_num_prism <- which(prism$DATE == end_date)
 
 ##Runs the analysis for tavg, tmax, and tmin.
-tavg_diags <- model.temps.lm(tavg,daterange=start_num:end_num)
-tmax_diags <- model.temps.lm(tmax,daterange=start_num:end_num)
-tmin_diags <- model.temps.lm(tmin,daterange=start_num:end_num)
+#tavg_diags <- model.temps.lm(tavg,daterange=start_num:end_num)
+#tmax_diags <- model.temps.lm(tmax,daterange=start_num:end_num)
+#tmin_diags <- model.temps.lm(tmin,daterange=start_num:end_num)
 
 ##Creates plots for each dataset.
-pdf("../results/lm_coefficients_diagnostics_tavg.pdf",width=6,height=8)
-plot.diags(tavg_diags,maintext="TAVG")
-dev.off()
-pdf("../results/lm_coefficients_diagnostics_tmax.pdf",width=6,height=8)
-plot.diags(tmax_diags,maintext="TMAX")
-dev.off()
-pdf("../results/lm_coefficients_diagnostics_tmin.pdf",width=6,height=8)
-plot.diags(tmin_diags,maintext="TMIN")
-dev.off()
+#pdf("../results/lm_coefficients_diagnostics_tavg.pdf",width=6,height=8)
+#plot.diags(tavg_diags,maintext="TAVG")
+#dev.off()
+#pdf("../results/lm_coefficients_diagnostics_tmax.pdf",width=6,height=8)
+#plot.diags(tmax_diags,maintext="TMAX")
+#dev.off()
+#pdf("../results/lm_coefficients_diagnostics_tmin.pdf",width=6,height=8)
+#plot.diags(tmin_diags,maintext="TMIN")
+#dev.off()
 
 #### Plots and measures relationships between observed and regional PRISM and topoWX estimates
 
-##Computes values of disparity, coupling, and buffering in tmax, tmin, and tavg for each site.
-indices_tmax <- boot_indices(regional_series=prism$TMAX[976:length(prism$TMAX)],
-                             local_frame=tmax,site_names=colnames(tmax[,-1]),nboot=1000)
-indices_tmin <- boot_indices(regional_series=prism$TMIN[976:length(prism$TMIN)],
-                             local_frame=tmin,site_names=colnames(tmin[,-1]),nboot=1000)
-indices_tavg <- boot_indices(regional_series=prism$TEMP[976:length(prism$TEMP)],
-                             local_frame=tavg,site_names=colnames(tavg[,-1]),nboot=1000)
+##Separates wet and dry season PRISM data.
+prism$MONTH <- as.numeric(format(prism$DATE,format="%m"))
+prism$WETDRY <- NA
+prism$WETDRY[prism$MONTH %in% c(10,11,12,1,2,3,4,5)] <- "Wet"
+prism$WETDRY[prism$MONTH %in% c(6,7,8,9)] <- "Dry"
+
+prism_dry <- prism
+prism_dry[prism_dry$WETDRY=="Wet",c(3:6)] <- NA
+
+prism_wet <- prism
+prism_wet[prism_wet$WETDRY=="Dry",c(3:6)] <- NA
+
+##Separates wet and dry season microclimate data.
+tmax_month <- as.numeric(format(tmax$DATE,format="%m"))
+tmax_wetdry <- rep(NA,length(tmax$DATE))
+tmax_wetdry[tmax_month %in% c(10,11,12,1,2,3,4,5)] <- "Wet"
+tmax_wetdry[tmax_month %in% c(6,7,8,9)] <- "Dry"
+tmax_dry <- tmax
+tmax_dry[tmax_wetdry=="Wet",-1] <- NA
+
+tmin_month <- as.numeric(format(tmin$DATE,format="%m"))
+tmin_wetdry <- rep(NA,length(tmin$DATE))
+tmin_wetdry[tmin_month %in% c(10,11,12,1,2,3,4,5)] <- "Wet"
+tmin_wetdry[tmin_month %in% c(6,7,8,9)] <- "Dry"
+tmin_wet <- tmin
+tmin_wet[tmin_wetdry=="Dry",-1] <- NA
+
+##Separates four season season PRISM data.
+prism$MONTH <- as.numeric(format(prism$DATE,format="%m"))
+prism$SEASON <- NA
+prism$SEASON[prism$MONTH %in% c(12,1,2)] <- "DJF"
+prism$SEASON[prism$MONTH %in% c(3,4,5)] <- "MAM"
+prism$SEASON[prism$MONTH %in% c(6,7,8)] <- "JJA"
+prism$SEASON[prism$MONTH %in% c(9,10,11)] <- "SON"
+
+prism_DJF <- prism
+prism_DJF[prism_DJF$SEASON != "DJF",c(3:6)] <- NA
+prism_MAM <- prism
+prism_MAM[prism_MAM$SEASON != "MAM",c(3:6)] <- NA
+prism_JJA <- prism
+prism_JJA[prism_JJA$SEASON != "JJA",c(3:6)] <- NA
+prism_SON <- prism
+prism_SON[prism_SON$SEASON != "SON",c(3:6)] <- NA
+
+##Separates four season microclimate data.
+tmax_month <- as.numeric(format(tmax$DATE,format="%m"))
+tmax_seas <- rep(NA,length(tmax$DATE))
+tmax_seas[tmax_month %in% c(12,1,2)] <- "DJF"
+tmax_seas[tmax_month %in% c(3,4,5)] <- "MAM"
+tmax_seas[tmax_month %in% c(6,7,8)] <- "JJA"
+tmax_seas[tmax_month %in% c(9,10,11)] <- "SON"
+
+tmax_DJF <- tmax
+tmax_DJF[tmax_seas != "DJF",-1] <- NA
+tmax_MAM <- tmax
+tmax_MAM[tmax_seas != "MAM",-1] <- NA
+tmax_JJA <- tmax
+tmax_JJA[tmax_seas != "JJA",-1] <- NA
+tmax_SON <- tmax
+tmax_SON[tmax_seas != "SON",-1] <- NA
+
+tmin_month <- as.numeric(format(tmin$DATE,format="%m"))
+tmin_seas <- rep(NA,length(tmin$DATE))
+tmin_seas[tmin_month %in% c(12,1,2)] <- "DJF"
+tmin_seas[tmin_month %in% c(3,4,5)] <- "MAM"
+tmin_seas[tmin_month %in% c(6,7,8)] <- "JJA"
+tmin_seas[tmin_month %in% c(9,10,11)] <- "SON"
+
+tmin_DJF <- tmin
+tmin_DJF[tmin_seas != "DJF",-1] <- NA
+tmin_MAM <- tmin
+tmin_MAM[tmin_seas != "MAM",-1] <- NA
+tmin_JJA <- tmin
+tmin_JJA[tmin_seas != "JJA",-1] <- NA
+tmin_SON <- tmin
+tmin_SON[tmin_seas != "SON",-1] <- NA
+
+tavg_month <- as.numeric(format(tavg$DATE,format="%m"))
+tavg_seas <- rep(NA,length(tavg$DATE))
+tavg_seas[tavg_month %in% c(12,1,2)] <- "DJF"
+tavg_seas[tavg_month %in% c(3,4,5)] <- "MAM"
+tavg_seas[tavg_month %in% c(6,7,8)] <- "JJA"
+tavg_seas[tavg_month %in% c(9,10,11)] <- "SON"
+
+tavg_DJF <- tavg
+tavg_DJF[tavg_seas != "DJF",-1] <- NA
+tavg_MAM <- tavg
+tavg_MAM[tavg_seas != "MAM",-1] <- NA
+tavg_JJA <- tavg
+tavg_JJA[tavg_seas != "JJA",-1] <- NA
+tavg_SON <- tavg
+tavg_SON[tavg_seas != "SON",-1] <- NA
+
+##Computes mean values from PRISM.
+prism_MAT <- mean(prism$TEMP[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_wet_TMIN <- mean(prism_wet$TMIN[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_dry_TMAX <- mean(prism_dry$TMAX[start_num_prism:end_num_prism],na.rm=TRUE)
+
+##Gathers PRISM seasonal averages
+prism_seas <- data.frame(seas=rep(c("DJF","MAM","JJA","SON"),times=3),
+                         meas=rep(c("TMAX","TMIN","TAVG"),each=4),
+                         value=rep(NA,12))
+prism_seas$value[prism_seas$seas=="DJF"][1] <- mean(prism_DJF$TMAX[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="DJF"][2] <- mean(prism_DJF$TMIN[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="DJF"][3] <- mean(prism_DJF$TEMP[start_num_prism:end_num_prism],na.rm=TRUE)
+
+prism_seas$value[prism_seas$seas=="MAM"][1] <- mean(prism_MAM$TMAX[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="MAM"][2] <- mean(prism_MAM$TMIN[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="MAM"][3] <- mean(prism_MAM$TEMP[start_num_prism:end_num_prism],na.rm=TRUE)
+
+prism_seas$value[prism_seas$seas=="JJA"][1] <- mean(prism_JJA$TMAX[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="JJA"][2] <- mean(prism_JJA$TMIN[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="JJA"][3] <- mean(prism_JJA$TEMP[start_num_prism:end_num_prism],na.rm=TRUE)
+
+prism_seas$value[prism_seas$seas=="SON"][1] <- mean(prism_SON$TMAX[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="SON"][2] <- mean(prism_SON$TMIN[start_num_prism:end_num_prism],na.rm=TRUE)
+prism_seas$value[prism_seas$seas=="SON"][3] <- mean(prism_SON$TEMP[start_num_prism:end_num_prism],na.rm=TRUE)
+
+##Computes values of disparity, coupling, and buffering in wet season tmax, winter tmin, and tavg for each site.
+indices_tavg <- boot_indices(regional_series=prism$TEMP[start_num_prism:end_num_prism],
+                             local_frame=tavg[start_num:end_num,-1],site_names=colnames(tavg[,-1]),
+                             nboot=1000)
+indices_dry_tmax <- boot_indices(regional_series=prism_dry$TMAX[start_num_prism:end_num_prism],
+                             local_frame=tmax_dry[start_num:end_num,-1],site_names=colnames(tmax[,-1]),
+                             nboot=1000)
+indices_wet_tmin <- boot_indices(regional_series=prism_wet$TMIN[start_num_prism:end_num_prism],
+                             local_frame=tmin_wet[start_num:end_num,-1],site_names=colnames(tmin[,-1]),
+                             nboot=1000)
+
+
+##Computes values of disparity, coupling, and buffering seasonally for each site.
+indices_DJF_tmax <- boot_indices(regional_series=prism_DJF$TMAX[start_num_prism:end_num_prism],
+                             local_frame=tmax_DJF[start_num:end_num,-1],site_names=colnames(tmax[,-1]),
+                             nboot=1000)
+indices_DJF_tmin <- boot_indices(regional_series=prism_DJF$TMIN[start_num_prism:end_num_prism],
+                             local_frame=tmin_DJF[start_num:end_num,-1],site_names=colnames(tmin[,-1]),
+                             nboot=1000)
+indices_DJF_tavg <- boot_indices(regional_series=prism_DJF$TEMP[start_num_prism:end_num_prism],
+                             local_frame=tavg_DJF[start_num:end_num,-1],site_names=colnames(tavg[,-1]),
+                             nboot=1000)
+
+indices_MAM_tmax <- boot_indices(regional_series=prism_MAM$TMAX[start_num_prism:end_num_prism],
+                                 local_frame=tmax_MAM[start_num:end_num,-1],site_names=colnames(tmax[,-1]),
+                                 nboot=1000)
+indices_MAM_tmin <- boot_indices(regional_series=prism_MAM$TMIN[start_num_prism:end_num_prism],
+                                 local_frame=tmin_MAM[start_num:end_num,-1],site_names=colnames(tmin[,-1]),
+                                 nboot=1000)
+indices_MAM_tavg <- boot_indices(regional_series=prism_MAM$TEMP[start_num_prism:end_num_prism],
+                                 local_frame=tavg_MAM[start_num:end_num,-1],site_names=colnames(tavg[,-1]),
+                                 nboot=1000)
+
+
+indices_JJA_tmax <- boot_indices(regional_series=prism_JJA$TMAX[start_num_prism:end_num_prism],
+                                 local_frame=tmax_JJA[start_num:end_num,-1],site_names=colnames(tmax[,-1]),
+                                 nboot=1000)
+indices_JJA_tmin <- boot_indices(regional_series=prism_JJA$TMIN[start_num_prism:end_num_prism],
+                                 local_frame=tmin_JJA[start_num:end_num,-1],site_names=colnames(tmin[,-1]),
+                                 nboot=1000)
+indices_JJA_tavg <- boot_indices(regional_series=prism_JJA$TEMP[start_num_prism:end_num_prism],
+                                 local_frame=tavg_JJA[start_num:end_num,-1],site_names=colnames(tavg[,-1]),
+                                 nboot=1000)
+
+indices_SON_tmax <- boot_indices(regional_series=prism_SON$TMAX[start_num_prism:end_num_prism],
+                                 local_frame=tmax_SON[start_num:end_num,-1],site_names=colnames(tmax[,-1]),
+                                 nboot=1000)
+indices_SON_tmin <- boot_indices(regional_series=prism_SON$TMIN[start_num_prism:end_num_prism],
+                                 local_frame=tmin_SON[start_num:end_num,-1],site_names=colnames(tmin[,-1]),
+                                 nboot=1000)
+indices_SON_tavg <- boot_indices(regional_series=prism_SON$TEMP[start_num_prism:end_num_prism],
+                                 local_frame=tavg_SON[start_num:end_num,-1],site_names=colnames(tavg[,-1]),
+                                 nboot=1000)
+
+##Saves climate indices to disk.
+write.csv(indices_tavg,"../cleaned/indices_tavg_2009_2015.csv",row.names=FALSE)
+write.csv(indices_wet_tmin,"../cleaned/indices_wet_tmin_2009_2015.csv",row.names=FALSE)
+write.csv(indices_dry_tmax,"../cleaned/indices_dry_tmax_2009_2015.csv",row.names=FALSE)
+
+##Saves seasonal estimates to disk.
+write.csv(prism_seas,"../cleaned/prism_seas_avg_2011_2015.csv")
+write.csv(indices_DJF_tavg,"../cleaned/indices_DJF_tavg_2009_2015.csv",row.names=FALSE)
+write.csv(indices_DJF_tmin,"../cleaned/indices_DJF_tmin_2009_2015.csv",row.names=FALSE)
+write.csv(indices_DJF_tmax,"../cleaned/indices_DJF_tmax_2009_2015.csv",row.names=FALSE)
+
+write.csv(indices_MAM_tavg,"../cleaned/indices_MAM_tavg_2009_2015.csv",row.names=FALSE)
+write.csv(indices_MAM_tmin,"../cleaned/indices_MAM_tmin_2009_2015.csv",row.names=FALSE)
+write.csv(indices_MAM_tmax,"../cleaned/indices_MAM_tmax_2009_2015.csv",row.names=FALSE)
+
+write.csv(indices_JJA_tavg,"../cleaned/indices_JJA_tavg_2009_2015.csv",row.names=FALSE)
+write.csv(indices_JJA_tmin,"../cleaned/indices_JJA_tmin_2009_2015.csv",row.names=FALSE)
+write.csv(indices_JJA_tmax,"../cleaned/indices_JJA_tmax_2009_2015.csv",row.names=FALSE)
+
+write.csv(indices_SON_tavg,"../cleaned/indices_SON_tavg_2009_2015.csv",row.names=FALSE)
+write.csv(indices_SON_tmin,"../cleaned/indices_SON_tmin_2009_2015.csv",row.names=FALSE)
+write.csv(indices_SON_tmax,"../cleaned/indices_SON_tmax_2009_2015.csv",row.names=FALSE)
+
+####Loads from disk.
+
+indices_tavg <- read.csv("../cleaned/indices_tavg_2009_2015.csv")
+indices_wet_tmin <- read.csv("../cleaned/indices_wet_tmin_2009_2015.csv")
+indices_dry_tmax <- read.csv("../cleaned/indices_dry_tmax_2009_2015.csv")
+
+prism_seas <- read.csv("../cleaned/prism_seas_avg_2011_2015.csv")
+indices_DJF_tavg <- read.csv("../cleaned/indices_DJF_tavg_2009_2015.csv")
+indices_DJF_tmin <- read.csv("../cleaned/indices_DJF_tmin_2009_2015.csv")
+indices_DJF_tmax <- read.csv("../cleaned/indices_DJF_tmax_2009_2015.csv")
+
+indices_MAM_tavg <- read.csv("../cleaned/indices_MAM_tavg_2009_2015.csv")
+indices_MAM_tmin <- read.csv("../cleaned/indices_MAM_tmin_2009_2015.csv")
+indices_MAM_tmax <- read.csv("../cleaned/indices_MAM_tmax_2009_2015.csv")
+
+indices_JJA_tavg <- read.csv("../cleaned/indices_JJA_tavg_2009_2015.csv")
+indices_JJA_tmin <- read.csv("../cleaned/indices_JJA_tmin_2009_2015.csv")
+indices_JJA_tmax <- read.csv("../cleaned/indices_JJA_tmax_2009_2015.csv")
+
+indices_SON_tavg <- read.csv("../cleaned/indices_SON_tavg_2009_2015.csv")
+indices_SON_tmin <- read.csv("../cleaned/indices_SON_tmin_2009_2015.csv")
+indices_SON_tmax <- read.csv("../cleaned/indices_SON_tmax_2009_2015.csv")
+
+##Independent estimates by year.
+start_dates <- as.Date(c("2009-09-01","2010-09-01","2011-09-01","2012-09-01",
+                         "2013-09-01","2014-09-01"))
+end_dates <- as.Date(c("2010-08-30","2011-08-30","2012-08-30","2013-08-30",
+                         "2014-08-30","2015-08-30"))
+year_labels <- c("2009-10","2010-11","2011-12","2012-13","2013-14","2014-15")
+start_nums <- which(tavg$DATE %in% start_dates)
+end_nums <- which(tavg$DATE %in% end_dates)
+start_nums_prism <- which(prism$DATE %in% start_dates)
+end_nums_prism <- which(prism$DATE %in% end_dates)
+
+cl <- makeCluster(3)
+registerDoParallel(cl)
+
+year_boots_tavg <- foreach(i=1:length(start_nums), .combine=rbind) %dopar%{
+  djf_indices <- boot_indices(regional_series=prism_DJF$TEMP[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tavg_DJF[start_nums[i]:end_nums[i],-1],site_names=colnames(tavg[,-1]),
+                              nboot=1000)
+  djf_indices$meas <- "tavg"
+  djf_indices$seas <- "DJF"
+  djf_indices$year <- year_labels[i]
+
+  mam_indices <- boot_indices(regional_series=prism_MAM$TEMP[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tavg_MAM[start_nums[i]:end_nums[i],-1],site_names=colnames(tavg[,-1]),
+                              nboot=1000)
+  mam_indices$meas <- "tavg"
+  mam_indices$seas <- "MAM"
+  mam_indices$year <- year_labels[i]
+  
+  jja_indices <- boot_indices(regional_series=prism_JJA$TEMP[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tavg_JJA[start_nums[i]:end_nums[i],-1],site_names=colnames(tavg[,-1]),
+                              nboot=1000)
+  jja_indices$meas <- "tavg"
+  jja_indices$seas <- "JJA"
+  jja_indices$year <- year_labels[i]
+  
+  son_indices <- boot_indices(regional_series=prism_SON$TEMP[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tavg_SON[start_nums[i]:end_nums[i],-1],site_names=colnames(tavg[,-1]),
+                              nboot=1000)
+  son_indices$meas <- "tavg"
+  son_indices$seas <- "SON"
+  son_indices$year <- year_labels[i]
+  rbind(djf_indices,mam_indices,jja_indices,son_indices)
+}
+stopCluster(cl)
+write.csv(year_boots_tavg,"../cleaned/yearly_seas_indices_tavg_2009_2015.csv")
+
+cl <- makeCluster(3)
+registerDoParallel(cl)
+
+year_boots_tmin <- foreach(i=1:length(start_nums), .combine=rbind) %dopar%{
+  djf_indices <- boot_indices(regional_series=prism_DJF$TMIN[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmin_DJF[start_nums[i]:end_nums[i],-1],site_names=colnames(tmin[,-1]),
+                              nboot=1000)
+  djf_indices$meas <- "tmin"
+  djf_indices$seas <- "DJF"
+  djf_indices$year <- year_labels[i]
+  
+  mam_indices <- boot_indices(regional_series=prism_MAM$TMIN[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmin_MAM[start_nums[i]:end_nums[i],-1],site_names=colnames(tmin[,-1]),
+                              nboot=1000)
+  mam_indices$meas <- "tmin"
+  mam_indices$seas <- "MAM"
+  mam_indices$year <- year_labels[i]
+  
+  jja_indices <- boot_indices(regional_series=prism_JJA$TMIN[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmin_JJA[start_nums[i]:end_nums[i],-1],site_names=colnames(tmin[,-1]),
+                              nboot=1000)
+  jja_indices$meas <- "tmin"
+  jja_indices$seas <- "JJA"
+  jja_indices$year <- year_labels[i]
+  
+  son_indices <- boot_indices(regional_series=prism_SON$TMIN[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmin_SON[start_nums[i]:end_nums[i],-1],site_names=colnames(tmin[,-1]),
+                              nboot=1000)
+  son_indices$meas <- "tmin"
+  son_indices$seas <- "SON"
+  son_indices$year <- year_labels[i]
+  rbind(djf_indices,mam_indices,jja_indices,son_indices)
+}
+stopCluster(cl)
+write.csv(year_boots_tmin,"../cleaned/yearly_seas_indices_tmin_2009_2015.csv")
+
+cl <- makeCluster(3)
+registerDoParallel(cl)
+
+year_boots_tmax <- foreach(i=1:length(start_nums), .combine=rbind) %dopar%{
+  djf_indices <- boot_indices(regional_series=prism_DJF$TMAX[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmax_DJF[start_nums[i]:end_nums[i],-1],site_names=colnames(tmax[,-1]),
+                              nboot=1000)
+  djf_indices$meas <- "tmax"
+  djf_indices$seas <- "DJF"
+  djf_indices$year <- year_labels[i]
+  
+  mam_indices <- boot_indices(regional_series=prism_MAM$TMAX[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmax_MAM[start_nums[i]:end_nums[i],-1],site_names=colnames(tmax[,-1]),
+                              nboot=1000)
+  mam_indices$meas <- "tmax"
+  mam_indices$seas <- "MAM"
+  mam_indices$year <- year_labels[i]
+  
+  jja_indices <- boot_indices(regional_series=prism_JJA$TMAX[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmax_JJA[start_nums[i]:end_nums[i],-1],site_names=colnames(tmax[,-1]),
+                              nboot=1000)
+  jja_indices$meas <- "tmax"
+  jja_indices$seas <- "JJA"
+  jja_indices$year <- year_labels[i]
+  
+  son_indices <- boot_indices(regional_series=prism_SON$TMAX[start_nums_prism[i]:end_nums_prism[i]],
+                              local_frame=tmax_SON[start_nums[i]:end_nums[i],-1],site_names=colnames(tmax[,-1]),
+                              nboot=1000)
+  son_indices$meas <- "tmax"
+  son_indices$seas <- "SON"
+  son_indices$year <- year_labels[i]
+  rbind(djf_indices,mam_indices,jja_indices,son_indices)
+}
+stopCluster(cl)
+write.csv(year_boots_tmax,"../cleaned/yearly_seas_indices_tmax_2009_2015.csv")
+
+
+
+###Plots indices across sites####
 
 ## Computes median value for coupling.
-med_coup <- median(indices_tmax[,8],na.rm=TRUE)
+med_coup <- median(indices_dry_tmax[,8],na.rm=TRUE)
 
 ### Plots each site ranked by disparity,buffering, and coupling.
-indices_disprank <- indices_tmax[order(indices_tmax$disp),]
+indices_disprank <- indices_dry_tmax[order(indices_dry_tmax$disp),]
 indices_disprank$high <- indices_disprank[,3] > 0
 indices_disprank$low <- indices_disprank[,4] < 0
 indices_disprank$cat <- as.factor(indices_disprank$low - indices_disprank$high)
-indices_sensrank <- indices_tmax[order(indices_tmax$sens),]
+indices_sensrank <- indices_dry_tmax[order(indices_dry_tmax$sens),]
 indices_sensrank$high <- indices_sensrank[,6] > 1
 indices_sensrank$low <- indices_sensrank[,7] < 1 
 indices_sensrank$cat <- as.factor(indices_sensrank$low - indices_sensrank$high)
-indices_couprank <- indices_tmax[order(indices_tmax$decouple),]
+indices_couprank <- indices_dry_tmax[order(indices_dry_tmax$decouple),]
 indices_couprank$high <- indices_couprank[,9] > med_coup
 indices_couprank$low <- indices_couprank[,10] < med_coup
 indices_couprank$cat <- as.factor(indices_couprank$low - indices_couprank$high)
 
-pdf("../results/tmax_disp_sens_coup.pdf",width=8,height=12)
+pdf("../results/sum_tmax_disp_sens_coup_2009_2015.pdf",width=8,height=12)
 par(mfrow=c(1,3),mar=c(4,1,2,1),xpd=TRUE)
 sens_cols <- c("black","black","black")
-xmin <- min(indices_disprank[,2],na.rm=TRUE)-5
+xmin <- min(indices_disprank[,2],na.rm=TRUE)-8
 xmax <- max(indices_disprank[,2],na.rm=TRUE)+3
 plot(seq(xmin,xmax,length.out=10),seq(1,dim(indices_disprank)[1],length.out=10),type="n",
      yaxt="n",xlab="Temp. Disparity (C)",ylab="",main="Disparity",frame.plot=FALSE)
@@ -157,7 +518,7 @@ for(i in 1:dim(indices_disprank)[1]){
 }
 segments(x0=1,x1=1,y0=-1,y1=i,lty=2)
 plot(seq(0,4,length.out=10),seq(1,dim(indices_disprank)[1],length.out=10),type="n",
-     yaxt="n",xlab="Temp. Decoupling (Correlation)",ylab="",main="Decoupling",frame.plot=FALSE)
+     yaxt="n",xlab="Temp. Decoupling (Variance)",ylab="",main="Decoupling",frame.plot=FALSE)
 for(i in 1:dim(indices_disprank)[1]){
   segments(x0=0.88,x1=1,y0=i,y1=i,lty=3,lwd=0.5)
   points(indices_couprank[i,8],i,pch=20)
@@ -170,23 +531,23 @@ segments(x0=med_coup,x1=med_coup,y0=-1,y1=i,lty=2)
 dev.off()
 
 ### Plots each site ranked by disparity,buffering, and coupling.
-tmin_indices_disprank <- indices_tmin[order(indices_tmin$disp),]
+tmin_indices_disprank <- indices_wet_tmin[order(indices_wet_tmin$disp),]
 tmin_indices_disprank$high <- tmin_indices_disprank[,3] > 0
 tmin_indices_disprank$low <- tmin_indices_disprank[,4] < 0
 tmin_indices_disprank$cat <- as.factor(tmin_indices_disprank$low - tmin_indices_disprank$high)
-tmin_indices_sensrank <- indices_tmin[order(indices_tmin$sens),]
+tmin_indices_sensrank <- indices_wet_tmin[order(indices_wet_tmin$sens),]
 tmin_indices_sensrank$high <- tmin_indices_sensrank[,6] > 1
 tmin_indices_sensrank$low <- tmin_indices_sensrank[,7] < 1 
 tmin_indices_sensrank$cat <- as.factor(tmin_indices_sensrank$low - tmin_indices_sensrank$high)
-tmin_indices_couprank <- indices_tmin[order(indices_tmin$decouple),]
+tmin_indices_couprank <- indices_wet_tmin[order(indices_wet_tmin$decouple),]
 tmin_indices_couprank$high <- tmin_indices_couprank[,9] > med_coup
 tmin_indices_couprank$low <- tmin_indices_couprank[,10] < med_coup
 tmin_indices_couprank$cat <- as.factor(tmin_indices_couprank$low - tmin_indices_couprank$high)
 
-pdf("../results/tmin_disp_sens_coup.pdf",width=8,height=10)
+pdf("../results/win_tmin_disp_sens_coup_2011_2015.pdf",width=8,height=10)
 par(mfrow=c(1,3),mar=c(4,1,2,1),xpd=TRUE)
 sens_cols <- c("black","black","black")
-xmin <- min(tmin_indices_disprank[,2],na.rm=TRUE)-5
+xmin <- min(tmin_indices_disprank[,2],na.rm=TRUE)-8
 xmax <- max(tmin_indices_disprank[,2],na.rm=TRUE)+3
 plot(seq(xmin,xmax,length.out=10),seq(1,dim(indices_disprank)[1],length.out=10),type="n",
      yaxt="n",xlab="Temp. Disparity (C)",ylab="",main="Disparity",frame.plot=FALSE)
@@ -237,7 +598,7 @@ tavg_indices_couprank$high <- tavg_indices_couprank[,9] > med_coup
 tavg_indices_couprank$low <- tavg_indices_couprank[,10] < med_coup
 tavg_indices_couprank$cat <- as.factor(tavg_indices_couprank$low - tavg_indices_couprank$high)
 
-pdf("../results/tavg_disp_sens_coup.pdf",width=8,height=10)
+pdf("../results/tavg_disp_sens_coup_2011_2015.pdf",width=8,height=10)
 par(mfrow=c(1,3),mar=c(4,1,2,1),xpd=TRUE)
 sens_cols <- c("black","black","black")
 xmin <- min(tavg_indices_disprank[,2],na.rm=TRUE)-5
@@ -278,8 +639,8 @@ segments(x0=med_coup,x1=med_coup,y0=-1,y1=i,lty=2)
 dev.off()
 
 #### Initial exploration predicting disparity, buffering, and coupling.
-meta_indices_tmax <- merge(meta,indices_tmax,by.x="alt_code",by.y="site")
-meta_indices_tmin <- merge(meta,indices_tmin,by.x="alt_code",by.y="site")
+meta_indices_tmax <- merge(meta,indices_dry_tmax,by.x="alt_code",by.y="site")
+meta_indices_tmin <- merge(meta,indices_wet_tmin,by.x="alt_code",by.y="site")
 meta_indices_tavg <- merge(meta,indices_tavg,by.x="alt_code",by.y="site")
 
 ###Computes scaled euclidean distance from "best" corner.
@@ -323,9 +684,12 @@ dist_tmax <- euc_dist(scale(meta_indices_tmax$disp),
 meta_indices_tmax$dist_tmax <- dist_tmax
 
 ####Writes to disk.
-write.csv(meta_indices_tavg[!is.na(meta_indices_tavg$decouple),],file="../results/buff_sens_decoup_tavg_covars.csv")
-write.csv(meta_indices_tmax[!is.na(meta_indices_tmax$decouple),],file="../results/buff_sens_decoup_tmax_covars.csv")
-write.csv(meta_indices_tmin[!is.na(meta_indices_tmin$decouple),],file="../results/buff_sens_decoup_tmin_covars.csv")
+write.csv(meta_indices_tavg, "../cleaned/meta_indices_tavg_2009_2015.csv")
+write.csv(meta_indices_tmax, "../cleaned/meta_indices_dry_tmax_2009_2015.csv")
+write.csv(meta_indices_tmin, "../cleaned/meta_indices_wet_tmin_2009_2015.csv")
+write.csv(meta_indices_tavg[!is.na(meta_indices_tavg$decouple),],file="../results/buff_sens_decoup_tavg_covars_2009_2015.csv")
+write.csv(meta_indices_tmax[!is.na(meta_indices_tmax$decouple),],file="../results/buff_sens_decoup_sum_tmax_covars_2009_2015.csv")
+write.csv(meta_indices_tmin[!is.na(meta_indices_tmin$decouple),],file="../results/buff_sens_decoup_win_tmin_covars_2009_2015.csv")
 
 
 ## 3-d plot of indices.
@@ -343,7 +707,7 @@ dist_tmax_cl <- cut(meta_indices_tmax$dist_tmax,breaks=5)
 dist_tmax_col <- ref_pal[as.numeric(dist_tmax_cl)]
 
 
-pdf("../results/disp_buff_decoup_3d.pdf",width=4.5,height=12)
+pdf("../results/disp_buff_decoup_3d_2010_2015.pdf",width=4.5,height=12)
 par(mfrow=c(3,1))
 s3d <- scatterplot3d(x=meta_indices_tavg$disp,y=meta_indices_tavg$sens,z=meta_indices_tavg$decouple,pch=21,
        xlab="Disparity (C)",ylab="Sensitivity",zlab="Decoupling",main="Tavg",
@@ -359,7 +723,7 @@ s3d$points3d(x=meta_indices_tavg$disp,y=meta_indices_tavg$sens,z=shadow_z,pch=19
              col=rgb(0.7,0.7,0.7,1),cex.symbols=1.2)
 
 s3d <- scatterplot3d(x=meta_indices_tmin$disp,y=meta_indices_tmin$sens,z=meta_indices_tmin$decouple,pch=21,
-                     xlab="Disparity (C)",ylab="Sensitivity",zlab="Decoupling",main="tmin",
+                     xlab="Disparity (C)",ylab="Sensitivity",zlab="Decoupling",main="Winter Tmin",
                      xlim=c(-8,3),ylim=c(0.7,1.3),zlim=c(0.8,4),color="black",cex.symbols=1.2,bg=dist_tmin_col)
 shadow_x <- rep(-8,length(meta_indices_tmin$disp))
 s3d$points3d(x=shadow_x,y=meta_indices_tmin$sens,z=meta_indices_tmin$decouple,pch=19,
@@ -373,7 +737,7 @@ s3d$points3d(x=meta_indices_tmin$disp,y=meta_indices_tmin$sens,z=shadow_z,pch=19
 
 
 s3d <- scatterplot3d(x=meta_indices_tmax$disp,y=meta_indices_tmax$sens,z=meta_indices_tmax$decouple,pch=21,
-                     xlab="Disparity (C)",ylab="Sensitivity",zlab="Decoupling",main="tmax",
+                     xlab="Disparity (C)",ylab="Sensitivity",zlab="Decoupling",main="Summer Tmax",
                      xlim=c(-8,3),ylim=c(0.7,1.3),zlim=c(0.8,4),color="black",cex.symbols=1.2,bg=dist_tmax_col)
 shadow_x <- rep(-8,length(meta_indices_tmax$disp))
 s3d$points3d(x=shadow_x,y=meta_indices_tmax$sens,z=meta_indices_tmax$decouple,pch=19,
@@ -387,71 +751,72 @@ s3d$points3d(x=meta_indices_tmax$disp,y=meta_indices_tmax$sens,z=shadow_z,pch=19
 
 dev.off()
 
-####Plots indices against some obvious covariates.
+####Plots sensitivity against some obvious covariates.
+pdf("../results/sens_covars_2009_2015.pdf",width=6,height=6)
 par(mfrow=c(3,3),xpd=FALSE,mar=c(4,4,2,2),oma=c(1,1,1,1))
 
 ##Tmax
-plot(disp~elev,pch=20,data=meta_indices_tmax,xlab="Elevation (m)",ylab="Disparity (C)")
-segments(x0=meta_indices_tmax$elev,x1=meta_indices_tmax$elev,y0=meta_indices_tmax$disp_lwr95,
-         y1=meta_indices_tmax$disp_upr95,lty=1,lwd=0.5)
-plot(sens~meta_indices_tmax$srad_sum_9m,pch=20,data=meta_indices_tmax,xlab="Solar Radiation (Wh/m^2/yr)",ylab="Sensitivity (unitless)")
-segments(x0=meta_indices_tmax$srad_sum_9m,x1=meta_indices_tmax$srad_sum_9m,y0=meta_indices_tmax$sens_lwr95,
+plot(sens~elev,pch=20,data=meta_indices_tmax,xlab="Elevation (m)",ylab="Sensitivity")
+segments(x0=meta_indices_tmax$elev,x1=meta_indices_tmax$elev,y0=meta_indices_tmax$sens_lwr95,
          y1=meta_indices_tmax$sens_upr95,lty=1,lwd=0.5)
-plot(decouple~relev_729m,pch=20,data=meta_indices_tmax,xlab="Cold-Air Index",ylab="Decoupling (unitless)")
-segments(x0=meta_indices_tmax$relev_729m,x1=meta_indices_tmax$cair_9m,y0=meta_indices_tmax$decouple_lwr95,
-         y1=meta_indices_tmax$decouple_upr95,lty=1,lwd=0.5)
+plot(sens~meta_indices_tmax$cold_ind_9m,pch=20,data=meta_indices_tmax,xlab="Cold-air Index",ylab="Sensitivity")
+segments(x0=meta_indices_tmax$cold_ind_9m,x1=meta_indices_tmax$cold_ind_9m,y0=meta_indices_tmax$sens_lwr95,
+         y1=meta_indices_tmax$sens_upr95,lty=1,lwd=0.5)
+plot(sens~cvol_81m,pch=20,data=meta_indices_tmax,xlab="Canopy Volume (m^3)",ylab="Sensitivity")
+segments(x0=meta_indices_tmax$cvol_81m,x1=meta_indices_tmax$cvol_81m,y0=meta_indices_tmax$sens_lwr95,
+         y1=meta_indices_tmax$sens_upr95,lty=1,lwd=0.5)
 
 ##Tmin
-plot(disp~elev,pch=20,data=meta_indices_tmin,xlab="Elevation (m)",ylab="Disparity (C)")
-segments(x0=meta_indices_tmin$elev,x1=meta_indices_tmin$elev,y0=meta_indices_tmin$disp_lwr95,
-         y1=meta_indices_tmin$disp_upr95,lty=1,lwd=0.5)
-plot(sens~cvol_81m,pch=20,data=meta_indices_tmin,xlab="Canopy Volume (m^3)",ylab="Sensitivity (unitless)")
+plot(sens~elev,pch=20,data=meta_indices_tmin,xlab="Elevation (m)",ylab="Sensitivity")
+segments(x0=meta_indices_tmin$elev,x1=meta_indices_tmin$elev,y0=meta_indices_tmin$sens_lwr95,
+         y1=meta_indices_tmin$sens_upr95,lty=1,lwd=0.5)
+plot(sens~meta_indices_tmin$cold_ind_9m,pch=20,data=meta_indices_tmin,xlab="Cold-air Index",ylab="Sensitivity")
+segments(x0=meta_indices_tmin$cold_ind_9m,x1=meta_indices_tmin$cold_ind_9m,y0=meta_indices_tmin$sens_lwr95,
+         y1=meta_indices_tmin$sens_upr95,lty=1,lwd=0.5)
+plot(sens~cvol_81m,pch=20,data=meta_indices_tmin,xlab="Canopy Volume (m^3)",ylab="Sensitivity")
 segments(x0=meta_indices_tmin$cvol_81m,x1=meta_indices_tmin$cvol_81m,y0=meta_indices_tmin$sens_lwr95,
          y1=meta_indices_tmin$sens_upr95,lty=1,lwd=0.5)
-plot(decouple~relev_729m,pch=20,data=meta_indices_tmin,xlab="Rel. Elevation (m)",ylab="Decoupling (unitless)")
-segments(x0=meta_indices_tmin$relev_729m,x1=meta_indices_tmin$relev_729m,y0=meta_indices_tmin$decouple_lwr95,
-         y1=meta_indices_tmin$decouple_upr95,lty=1,lwd=0.5)
 
 ##Tavg
-plot(disp~elev,pch=20,data=meta_indices_tavg,xlab="Elevation (m)",ylab="Disparity (C)")
-segments(x0=meta_indices_tavg$elev,x1=meta_indices_tavg$elev,y0=meta_indices_tavg$disp_lwr95,
-         y1=meta_indices_tavg$disp_upr95,lty=1,lwd=0.5)
-plot(sens~cvol_81m,pch=20,data=meta_indices_tavg,xlab="Canopy Volume (m^3)",ylab="Sensitivity (unitless)")
+plot(sens~elev,pch=20,data=meta_indices_tavg,xlab="Elevation (m)",ylab="Sensitivity")
+segments(x0=meta_indices_tavg$elev,x1=meta_indices_tavg$elev,y0=meta_indices_tavg$sens_lwr95,
+         y1=meta_indices_tavg$sens_upr95,lty=1,lwd=0.5)
+plot(sens~meta_indices_tavg$cold_ind_9m,pch=20,data=meta_indices_tavg,xlab="Cold-air Index",ylab="Sensitivity")
+segments(x0=meta_indices_tavg$cold_ind_9m,x1=meta_indices_tavg$cold_ind_9m,y0=meta_indices_tavg$sens_lwr95,
+         y1=meta_indices_tavg$sens_upr95,lty=1,lwd=0.5)
+plot(sens~cvol_81m,pch=20,data=meta_indices_tavg,xlab="Canopy Volume (m^3)",ylab="Sensitivity")
 segments(x0=meta_indices_tavg$cvol_81m,x1=meta_indices_tavg$cvol_81m,y0=meta_indices_tavg$sens_lwr95,
          y1=meta_indices_tavg$sens_upr95,lty=1,lwd=0.5)
-plot(decouple~relev_729m,pch=20,data=meta_indices_tavg,xlab="Rel. Elevation (m)",ylab="Decoupling (unitless)")
-segments(x0=meta_indices_tavg$relev_729m,x1=meta_indices_tavg$relev_729m,y0=meta_indices_tavg$decouple_lwr95,
-         y1=meta_indices_tavg$decouple_upr95,lty=1,lwd=0.5)
-
+dev.off()
 
 ####Initial models.
-
-disparity_lm_tmax <- lm(disp~elev+cvol_81m,data=meta_indices_tmax)
+disparity_lm_tmax <- lm(disp~elev+canvol_81m+X_UTM,data=meta_indices_tmax)
 summary(disparity_lm_tmax)
-sens_lm_tmax <- lm(sens~cvol_81m*elev,data=meta_indices_tmax)
+sens_lm_tmax <- lm(sens~elev+canvol_81m+X_UTM+Y_UTM,data=meta_indices_tmax)
 summary(sens_lm_tmax)
-decoupling_lm_tmax <- lm(decouple~relev_729m+I(relev_729m^2),data=meta_indices_tmax)
+decoupling_lm_tmax <- lm(decouple~elev+srad_noc+X_UTM,data=meta_indices_tmax)
 summary(decoupling_lm_tmax)
 
-disparity_lm_tmin <- lm(disp~elev+cold_ind_9m+I(logit(ccov_81m+0.001)),data=meta_indices_tmin)
+disparity_lm_tmin <- lm(disp~elev+cold_ind_9m+ccov_81m+X_UTM,data=meta_indices_tmin)
 summary(disparity_lm_tmin)
-sens_lm_tmin <- lm(sens~elev+I(logit(ccov_81m+0.001))+cold_ind_9m,data=meta_indices_tmin)
+sens_lm_tmin <- lm(sens~elev+cold_ind_9m,data=meta_indices_tmin)
 summary(sens_lm_tmin)
-decoupling_lm_tmin <- lm(decouple~elev+relev_729m,data=meta_indices_tmin)
+decoupling_lm_tmin <- lm(decouple~elev+cold_ind_9m,data=meta_indices_tmin)
 summary(decoupling_lm_tmin)
 
-disparity_lm_tavg <- lm(disp~elev+cold_ind_9m+I(logit(ccov_81m+0.001)),data=meta_indices_tavg)
+disparity_lm_tavg <- lm(disp~elev+cold_ind_9m+srad_sum_9m+X_UTM,data=meta_indices_tavg)
 summary(disparity_lm_tavg)
-sens_lm_tavg <- lm(sens~elev+relev_729m,data=meta_indices_tavg)
+sens_lm_tavg <- lm(sens~elev+cold_ind_9m+I(log(canvol_81m))+X_UTM,data=meta_indices_tavg)
 summary(sens_lm_tavg)
-decoupling_lm_tavg <- lm(decouple~elev,data=meta_indices_tavg)
+decoupling_lm_tavg <- lm(decouple~elev*cold_ind_9m,data=meta_indices_tavg)
 summary(decoupling_lm_tavg)
+
 
 #### Fitting a dynamic space-time model to the data.####
 
 ##Temporal bounds of analysis
-start_date <- as.POSIXct("2013-6-1")
-end_date <- as.POSIXct("2015-6-1")
+start_date <- as.POSIXct("2013-9-1")
+end_date <- as.POSIXct("2015-8-31")
 
 ##Subsets data.
 tavg_merge <- merge(tavg,prism,all.x=TRUE)
@@ -459,33 +824,35 @@ tavg_diff <- tavg_merge[2:dim(tavg)[2]] - tavg_merge$TEMP
 tavg_sub <- tavg_diff[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date),-c(11)]
 y.tavg <- t(tavg_sub)
 colnames(y.tavg) <- paste("y.",1:dim(y.tavg)[2],sep="")
-y.prism.tavg <- matrix(tavg_merge$TEMP[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)],
-                       nrow=dim(y.tavg)[1],ncol=dim(y.tavg)[2],byrow=TRUE)
 
 tmax_merge <- merge(tmax,prism,all.x=TRUE)
 tmax_diff <- tmax_merge[2:dim(tmax)[2]] - tavg_merge$TMAX
 tmax_sub <- tmax_diff[which(tmax_merge$DATE == start_date):which(tmax_merge$DATE == end_date),-c(11)]
 y.tmax <- t(tmax_sub)
 colnames(y.tmax) <- paste("y.",1:dim(y.tmax)[2],sep="")
-y.prism.tmax <- matrix(tavg_merge$TMAX[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)],
-                       nrow=dim(y.tavg)[1],ncol=dim(y.tavg)[2],byrow=TRUE)
 
 tmin_merge <- merge(tmin,prism,all.x=TRUE)
 tmin_diff <- tmin_merge[2:dim(tmin)[2]] - tavg_merge$TMIN
 tmin_sub <- tmin_diff[which(tmin_merge$DATE == start_date):which(tmin_merge$DATE == end_date),-c(11)]
 y.tmin <- t(tmin_sub)
 colnames(y.tmin) <- paste("y.",1:dim(y.tmin)[2],sep="")
-y.prism.tmin <- matrix(tavg_merge$TMIN[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)],
-                       nrow=dim(y.tavg)[1],ncol=dim(y.tavg)[2],byrow=TRUE)
 
 
 ##Adds Franklin sites to data as missing.
-#fsites.y <- matrix(NA,nrow=length(fsites$SITE),ncol=dim(y.tavg)[2])
-#rownames(fsites.y) <- fsites$SITE[order(fsites$SITE)]
-#colnames(fsites.y) <- paste("y.",1:dim(y.tmin)[2],sep="")
-#y.tavg <- rbind(y.tavg,fsites.y)
-#y.tmin <- rbind(y.tmin,fsites.y)
-#y.tmax <- rbind(y.tmax,fsites.y)
+fsites.y <- matrix(NA,nrow=length(fsites$SITE),ncol=dim(y.tavg)[2])
+rownames(fsites.y) <- fsites$SITE[order(fsites$SITE)]
+colnames(fsites.y) <- paste("y.",1:dim(y.tmin)[2],sep="")
+y.tavg <- rbind(y.tavg,fsites.y)
+y.tmin <- rbind(y.tmin,fsites.y)
+y.tmax <- rbind(y.tmax,fsites.y)
+
+##Creates PRISM data matrix.
+y.prism.tavg <- matrix(tavg_merge$TEMP[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)],
+                       nrow=dim(y.tavg)[1],ncol=dim(y.tavg)[2],byrow=TRUE)
+y.prism.tmax <- matrix(tavg_merge$TMAX[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)],
+                       nrow=dim(y.tavg)[1],ncol=dim(y.tavg)[2],byrow=TRUE)
+y.prism.tmin <- matrix(tavg_merge$TMIN[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)],
+                       nrow=dim(y.tavg)[1],ncol=dim(y.tavg)[2],byrow=TRUE)
 
 ##Dimensions for model fitting and plotting
 y.dates <- tavg_merge$DATE[which(tavg_merge$DATE == start_date):which(tavg_merge$DATE == end_date)]
@@ -496,11 +863,11 @@ tmax.prsm <- tmax_merge$TMAX[which(tavg_merge$DATE == start_date):which(tavg_mer
 N.t<- dim(tavg_sub)[1]
 n <- nrow(y.tavg)
 
-##Drops sites with no covariate data and assembles covariates.
-cols <- data.frame(alt_code=colnames(tavg_sub))
-meta_order <-merge(cols,meta,by.x="alt_code",by.y="alt_code",sort=FALSE,all.x=TRUE)
-
 ##Prepares covariates.
+
+data_cols <- data.frame(alt_code=colnames(tavg_sub))
+meta_order <-merge(data_cols,meta,by.x="alt_code",by.y="alt_code",sort=FALSE,all.x=TRUE)
+
 meta_covs <- data.frame(site=meta_order$alt_code,
                         elev=meta_order$elev,
                         relev=meta_order$relev_729m,
@@ -511,15 +878,17 @@ meta_covs <- data.frame(site=meta_order$alt_code,
                         dry=meta_order$dry_ind_9m,
                         utmx=meta_order$utmx,
                         utmy=meta_order$utmy)
-# f_covs <- data.frame(site=fsites$SITE,
-#                      elev=fsites$MORA_elev_3m,
-#                      relev=(fsites$MORA_elev_3m - fsites$MORA_elev__focal_729m),
-#                      cvol=fsites$MORA_can_vol_81m,
-#                      ccov=fsites$MORA_can_pct_focal81m,
-#                      cair=fsites$MORA_coldair_index,
-#                      utmx=fsites$utmx,
-#                      utmy=fsites$utmy)
-#meta_covs <- rbind(meta_covs,f_covs)
+f_covs <- data.frame(site=fsites$SITE,
+                     elev=fsites$MORA_elev_3m,
+                     relev=(fsites$MORA_elev_3m - fsites$MORA_elev__focal_729m),
+                     cvol=fsites$MORA_can_vol_81m,
+                     ccov=fsites$MORA_can_pct_focal81m,
+                     cair=fsites$MORA_coldair_index,
+                     srad=fsites$MORA_srad_yearsum_9m,
+                     dry=fsites$MORA_dry_index_9m_precip,
+                     utmx=fsites$utmx,
+                     utmy=fsites$utmy)
+meta_covs <- rbind(meta_covs,f_covs)
 
 
 elev <- scale(meta_covs$elev/1000)
@@ -575,35 +944,35 @@ priors <- list("beta.0.Norm"=list(rep(0,p), diag(1000,p)),
 
 n.samples <- 2000
 
-m.1 <- spDynLM(mods_tavg, data=data.frame(cbind(y.tavg,elev,cair,cvol_resid,utmx,utmy)), 
+m.1 <- spDynLM(mods_tavg, data=data.frame(cbind(y.tavg,elev,cair_resid,cvol_resid,utmx,utmy)), 
                                                    coords=coords,starting=starting, 
                                                    tuning=tuning, priors=priors, 
                                                    get.fitted =TRUE,cov.model="spherical", 
                                                    n.samples=n.samples, n.report=10)
-save(m.1,file="/volumes/ib_working/tavg_ssmod_output.Rdata",compress=TRUE)
+save(m.1,file="/volumes/ib_working/tavg_ssmod_output_2014_2015.Rdata",compress=TRUE)
 remove(m.1)
 
-m.2 <- spDynLM(mods_tmax, data=data.frame(cbind(y.tmax,elev,cair,cvol_resid,utmx,utmy)), 
+m.2 <- spDynLM(mods_tmax, data=data.frame(cbind(y.tmax,elev,cair_resid,cvol_resid,utmx,utmy)), 
                                                    coords=coords,starting=starting, 
                                                    tuning=tuning, priors=priors, 
                                                    get.fitted =TRUE,cov.model="spherical", 
                                                    n.samples=n.samples, n.report=10)
-save(m.2,file="/volumes/ib_working/tmax_ssmod_output.Rdata",compress=TRUE)
+save(m.2,file="/volumes/ib_working/tmax_ssmod_output_2014_2015.Rdata",compress=TRUE)
 remove(m.2)
 
-m.3 <- spDynLM(mods_tmin, data=data.frame(cbind(y.tavg,elev,cair,cvol_resid,utmx,utmy)), 
+m.3 <- spDynLM(mods_tmin, data=data.frame(cbind(y.tavg,elev,cair_resid,cvol_resid,utmx,utmy)), 
                                             coords=coords,starting=starting, 
                                             tuning=tuning, priors=priors, 
                                             get.fitted =TRUE,cov.model="spherical", 
                                             n.samples=n.samples, n.report=10)
-save(m.3,file="/volumes/ib_working/tmin_ssmod_output.Rdata",compress=TRUE)
+save(m.3,file="/volumes/ib_working/tmin_ssmod_output_2014_2015.Rdata",compress=TRUE)
 remove(m.3)
 
 load("/volumes/ib_working/tavg_ssmod_output.Rdata")
 load("/volumes/ib_working/tmax_ssmod_output.Rdata")
 load("/volumes/ib_working/tmin_ssmod_output.Rdata")
 
-burn.in <- floor(0.75*n.samples)
+burn.in <- floor(0.5*n.samples)
 
 quant <- function(x){quantile(x, prob=c(0.5, 0.025, 0.975))}
 
@@ -612,20 +981,19 @@ beta <- apply(m.1$p.beta.samples[burn.in:n.samples,], 2, quant)
 beta.0 <- beta[,grep("Intercept", colnames(beta))]
 beta.1 <- beta[,grep("^elev\\.", colnames(beta))]
 beta.2 <- beta[,grep("^cair_resid\\.", colnames(beta))]
-beta.3 <- beta[,grep("elev:cair_resid", colnames(beta))]
-beta.4 <- beta[,grep("cvol", colnames(beta))]
-beta.5 <- beta[,grep("^utmx\\.", colnames(beta))]
-beta.6 <- beta[,grep("^utmy\\.", colnames(beta))]
-tavg.betas <- data.frame(y.dates,beta.0[1,],beta.1[1,],beta.2[1,],beta.3[1,],beta.4[1,],beta.5[1,],beta.6[1,])
-tavg.betas.lwr <- data.frame(y.dates,beta.0[2,],beta.1[2,],beta.2[2,],beta.3[2,],beta.4[2,],beta.5[2,],beta.6[2,])
-tavg.betas.upr <- data.frame(y.dates,beta.0[3,],beta.1[3,],beta.2[3,],beta.3[3,],beta.4[3,],beta.5[3,],beta.6[3,])
+beta.3 <- beta[,grep("^cvol_resid", colnames(beta))]
+beta.4 <- beta[,grep("^utmx\\.", colnames(beta))]
+beta.5 <- beta[,grep("^utmy\\.", colnames(beta))]
+tavg.betas <- data.frame(y.dates,beta.0[1,],beta.1[1,],beta.2[1,],beta.3[1,],beta.4[1,],beta.5[1,])
+tavg.betas.lwr <- data.frame(y.dates,beta.0[2,],beta.1[2,],beta.2[2,],beta.3[2,],beta.4[2,],beta.5[2,])
+tavg.betas.upr <- data.frame(y.dates,beta.0[3,],beta.1[3,],beta.2[3,],beta.3[3,],beta.4[3,],beta.5[3,])
 tavg.betas$precip <- y.prcp
 tavg.betas$prsm <- tavg.prsm
-colnames(tavg.betas) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy","prsm_prcp","prsm_temp")
+colnames(tavg.betas) <-  c("date","int","elev","cair_resid","cvol_resid","utmx","utmy","prsm_prcp","prsm_temp")
 rownames(tavg.betas) <- y.dates
-colnames(tavg.betas.lwr) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy")
+colnames(tavg.betas.lwr) <-  c("date","int","elev","cair_resid","cvol_resid","utmx","utmy")
 rownames(tavg.betas.lwr) <- y.dates
-colnames(tavg.betas.upr) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy")
+colnames(tavg.betas.upr) <-  c("date","int","elev","cair_resid","cvol_resid","utmx","utmy")
 rownames(tavg.betas.upr) <- y.dates
 
 beta.tmax <- apply(m.2$p.beta.samples[burn.in:n.samples,], 2, quant)
@@ -633,7 +1001,7 @@ beta.tmax.0 <- beta.tmax[,grep("Intercept", colnames(beta.tmax))]
 beta.tmax.1 <- beta.tmax[,grep("^elev\\.", colnames(beta.tmax))]
 beta.tmax.2 <- beta.tmax[,grep("^cair_resid\\.", colnames(beta.tmax))]
 beta.tmax.3 <- beta.tmax[,grep("elev:cair_resid", colnames(beta.tmax))]
-beta.tmax.4 <- beta.tmax[,grep("cvol", colnames(beta.tmax))]
+beta.tmax.4 <- beta.tmax[,grep("cvol_resid", colnames(beta.tmax))]
 beta.tmax.5 <- beta.tmax[,grep("^utmx\\.", colnames(beta.tmax))]
 beta.tmax.6 <- beta.tmax[,grep("^utmy\\.", colnames(beta.tmax))]
 tmax.betas <- data.frame(y.dates,beta.tmax.0[1,],beta.tmax.1[1,],beta.tmax.2[1,],
@@ -644,11 +1012,11 @@ tmax.betas.upr <- data.frame(y.dates,beta.tmax.0[3,],beta.tmax.1[3,],beta.tmax.2
                              beta.tmax.4[3,],beta.tmax.5[3,],beta.tmax.6[3,])
 tmax.betas$precip <- y.prcp
 tmax.betas$prsm <- tmax.prsm
-colnames(tmax.betas) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy","prsm_prcp","prsm_temp")
+colnames(tmax.betas) <-  c("date","int","elev","cair_resid","elev_cair","cvol","utmx","utmy","prsm_prcp","prsm_temp")
 rownames(tmax.betas) <- y.dates
-colnames(tmax.betas.lwr) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy")
+colnames(tmax.betas.lwr) <-  c("date","int","elev","cair_resid","elev_cair","cvol","utmx","utmy")
 rownames(tmax.betas.lwr) <- y.dates
-colnames(tmax.betas.upr) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy")
+colnames(tmax.betas.upr) <-  c("date","int","elev","cair_resid","elev_cair","cvol","utmx","utmy")
 rownames(tmax.betas.upr) <- y.dates
 
 beta.tmin <- apply(m.3$p.beta.samples[burn.in:n.samples,], 2, quant)
@@ -656,7 +1024,7 @@ beta.tmin.0 <- beta.tmin[,grep("Intercept", colnames(beta.tmin))]
 beta.tmin.1 <- beta.tmin[,grep("^elev\\.", colnames(beta.tmin))]
 beta.tmin.2 <- beta.tmin[,grep("^cair_resid\\.", colnames(beta.tmin))]
 beta.tmin.3 <- beta.tmin[,grep("elev:cair_resid", colnames(beta.tmin))]
-beta.tmin.4 <- beta.tmin[,grep("cvol", colnames(beta.tmin))]
+beta.tmin.4 <- beta.tmin[,grep("cvol_resid", colnames(beta.tmin))]
 beta.tmin.5 <- beta.tmin[,grep("^utmx\\.", colnames(beta.tmin))]
 beta.tmin.6 <- beta.tmin[,grep("^utmy\\.", colnames(beta.tmin))]
 tmin.betas <- data.frame(y.dates,beta.tmin.0[1,],beta.tmin.1[1,],beta.tmin.2[1,],
@@ -667,15 +1035,15 @@ tmin.betas.upr <- data.frame(y.dates,beta.tmin.0[3,],beta.tmin.1[3,],beta.tmin.2
                              beta.tmin.4[3,],beta.tmin.5[3,],beta.tmin.6[3,])
 tmin.betas$precip <- y.prcp
 tmin.betas$prsm <- tmin.prsm
-colnames(tmin.betas) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy","prsm_prcp","prsm_temp")
+colnames(tmin.betas) <-  c("date","int","elev","cair_resid","elev_cair","cvol_resid","utmx","utmy","prsm_prcp","prsm_temp")
 rownames(tmin.betas) <- y.dates
-colnames(tmin.betas.lwr) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy")
+colnames(tmin.betas.lwr) <-  c("date","int","elev","cair_resid","elev_cair","cvol_resid","utmx","utmy")
 rownames(tmin.betas.lwr) <- y.dates
-colnames(tmin.betas.upr) <-  c("date","int","elev","cair","elev_cair","cvol","utmx","utmy")
+colnames(tmin.betas.upr) <-  c("date","int","elev","cair_resid","elev_cair","cvol_resid","utmx","utmy")
 rownames(tmin.betas.upr) <- y.dates
 
 ##Plots time-series of coefficients
-plot.beta.ts(y.dates,beta.0,beta.1,beta.2,beta.3,beta.4)
+plot.beta.ts(y.dates,beta.0,beta.1,beta.2,beta.3,beta.4,beta.5)
 plot.beta.ts(y.dates,beta.tmax.0,beta.tmax.1,beta.tmax.2,beta.tmax.3,beta.tmax.4)
 plot.beta.ts(y.dates,beta.tmin.0,beta.tmin.1,beta.tmin.2,beta.tmin.3,beta.tmax.4)
 
@@ -868,6 +1236,7 @@ y.hat.tavg <- apply(m.1$p.y.samples[,burn.in:n.samples], 1, quant)
 y.hat.tavg.med <- matrix(y.hat.tavg[1,], ncol=N.t) + y.prism.tavg
 y.hat.tavg.up <- matrix(y.hat.tavg[3,], ncol=N.t) + y.prism.tavg
 y.hat.tavg.low <- matrix(y.hat.tavg[2,], ncol=N.t) + y.prism.tavg
+y.hat.tavg.MAT <- apply(y.hat.tavg.med,FUN=mean,MARGIN=1)
 
 y.hat.tmax <- apply(m.2$p.y.samples[,burn.in:n.samples], 1, quant)
 y.hat.tmax.med <- matrix(y.hat.tmax[1,], ncol=N.t) + y.prism.tmax
@@ -878,6 +1247,21 @@ y.hat.tmin <- apply(m.3$p.y.samples[,burn.in:n.samples], 1, quant)
 y.hat.tmin.med <- matrix(y.hat.tmin[1,], ncol=N.t) + y.prism.tmin
 y.hat.tmin.up <- matrix(y.hat.tmin[3,], ncol=N.t) + y.prism.tmin
 y.hat.tmin.low <- matrix(y.hat.tmin[2,], ncol=N.t) + y.prism.tmin
+
+##Compares state-space model predictions to PRISM MAT.
+fsites$ssmod_MAT <- y.hat.tavg.MAT[(dim(tavg_sub)[2]+1):length(y.hat.tavg.MAT)]
+tempsites_ssmod_MAT <- y.hat.tavg.MAT[1:dim(tavg_sub)[2]]
+write.csv(fsites,"../results/franklin_ssmod_tavg_sens.csv")
+
+##Computes SSMOD estimates of sensitivity for each site.
+plot(y.prism.tavg[125,],y.hat.tavg.med[125,],xlim=c(-15,30),ylim=c(-15,30))
+points(y.prism.tavg[125,],y.tavg[125,]+y.prism.tavg[125,],col=2)
+abline(0,1,lty=2)
+tavg_sens <- rep(NA,dim(y.hat.tavg.med)[1])
+for(i in 1:length(tavg_sens)){
+  tavg_sens[i] <- coefficients(lm(y.hat.tavg.med[i,]~y.prism.tavg[i,]))[2]
+}
+fsites$ssmod_TAVG_sens <- tavg_sens[(dim(tavg_sub)[2]+1):length(y.hat.tavg.MAT)]
 
 pdf("../results/ssmod_2014_series.pdf",width=7,height=4.5)
 plots <- c("TO04.STR.A1","TO04.A2","PARA.STR.A1","PARA.A2")
@@ -897,14 +1281,14 @@ for(i in 1:length(plots)){
   }
   polygon(x=c(y.dates,rev(y.dates)),y=c(y.hat.tavg.low[plotnum,],rev(y.hat.tavg.up[plotnum,])),
               col=rgb(0.25,0.25,0.25,0.25),border = FALSE)
-  polygon(x=c(y.dates,rev(y.dates)),y=c(y.hat.tmax.low[plotnum,],rev(y.hat.tmax.up[plotnum,])),
-          col=rgb(0.9,0.25,0.25,0.25),border = FALSE)
-  polygon(x=c(y.dates,rev(y.dates)),y=c(y.hat.tmin.low[plotnum,],rev(y.hat.tmin.up[plotnum,])),
-          col=rgb(0.25,0.25,0.9,0.25),border = FALSE)
-  points(y.dates,(y.tmax[plotnum,]+y.prism.tmax[1,]), pch=19, cex=0.3, xlab="",
-         ylab="",ylim=c(-8,28),xaxt="n",col="red")
-  points(y.dates,(y.tmin[plotnum,]+y.prism.tmin[1,]), pch=19, cex=0.3, xlab="",
-         ylab="",ylim=c(-8,28),xaxt="n",col="blue")
+  # polygon(x=c(y.dates,rev(y.dates)),y=c(y.hat.tmax.low[plotnum,],rev(y.hat.tmax.up[plotnum,])),
+  #         col=rgb(0.9,0.25,0.25,0.25),border = FALSE)
+  # polygon(x=c(y.dates,rev(y.dates)),y=c(y.hat.tmin.low[plotnum,],rev(y.hat.tmin.up[plotnum,])),
+  #         col=rgb(0.25,0.25,0.9,0.25),border = FALSE)
+  # points(y.dates,(y.tmax[plotnum,]+y.prism.tmax[1,]), pch=19, cex=0.3, xlab="",
+  #        ylab="",ylim=c(-8,28),xaxt="n",col="red")
+  # points(y.dates,(y.tmin[plotnum,]+y.prism.tmin[1,]), pch=19, cex=0.3, xlab="",
+  #        ylab="",ylim=c(-8,28),xaxt="n",col="blue")
   axis.POSIXct(side=1,x = y.dates,labels = FALSE)
   abline(h=0,lty=2,col="blue")
   mtext(text=plots[i],side=3,outer=FALSE,padj=2,adj=1)

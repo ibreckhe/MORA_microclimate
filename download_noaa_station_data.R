@@ -36,21 +36,23 @@ stationIDs <- c("GHCND:USS0021C35S", "GHCND:USS0021B62S", "GHCND:USC00455704", "
 ## this is a workaround.
 get_ghcn_daily <- function(start_date, end_date, type, stations, chunk_days = 20) {
     dates <- seq(start_date, end_date, by = chunk_days)
+    print("Downloading data for date chunk:")
     data_list <- list()
     for (i in 2:length(dates)) {
-        data_list[[i - 1]] <- noaa(datasetid = "GHCND", datatypeid = type, stationid = stations, startdate = as.character(dates[i - 
+        print(paste(i," of ",length(dates),sep=""))
+        data_list[[i - 1]] <- ncdc(datasetid = "GHCND", datatypeid = type, stationid = stations, startdate = as.character(dates[i - 
             1]), enddate = as.character(dates[i]), limit = 1000)
     }
     data <- data_list[[1]]
     for (i in 2:length(data_list)) {
-        data <- noaa_combine(data, data_list[[i]])
+        data <- ncdc_combine(data, data_list[[i]])
     }
     return(data)
 }
 
-## Gets the data.
-start <- as.Date("2013-10-01")
-end <- as.Date("2016-09-30")
+## Gets the most recent data.
+start <- as.Date("1981-01-01")
+end <- as.Date("2015-12-31")
 tmax_data <- get_ghcn_daily(start, end, type = "TMAX", stations = stationIDs, chunk_days = 20)[[1]]
 tmin_data <- get_ghcn_daily(start, end, type = "TMIN", stations = stationIDs, chunk_days = 20)[[1]]
 prcp_data <- get_ghcn_daily(start, end, type = "PRCP", stations = stationIDs, chunk_days = 20)[[1]]
@@ -66,9 +68,98 @@ scatter.smooth(as.Date(prcp_data$date), prcp_data$value, pch = 20, cex = 0.2, co
 
 
 ## Writes the data to disk.
-write.csv(tmax_data, "MORA_daily_climate_tmax.csv")
-write.csv(tmin_data, "MORA_daily_climate_tmin.csv")
-write.csv(prcp_data, "MORA_daily_climate_prcp.csv")
+write.csv(tmax_data, "MORA_daily_climate_tmax_2013_2015.csv")
+write.csv(tmin_data, "MORA_daily_climate_tmin_2013_2015.csv")
+write.csv(prcp_data, "MORA_daily_climate_prcp_2013_2015.csv")
+
+tmax_data <- read.csv("MORA_daily_climate_tmax_2013_2015.csv")
+tmin_data <- read.csv("MORA_daily_climate_tmin_2013_2015.csv")
+prcp_data <- read.csv("MORA_daily_climate_prcp_2013_2015.csv")
+
+
+#### Cleans the contemporary climate data.####
+tmax_data$date <- strptime(tmax_data$date,format="%Y-%m-%dT%H:%M:%S")
+tmin_data$date <- strptime(tmin_data$date,format="%Y-%m-%dT%H:%M:%S")
+prcp_data$date <- strptime(prcp_data$date,format="%Y-%m-%dT%H:%M:%S")
+
+##TMAX cleaning.
+tmax_data <- tmax_data[,c("date","station","value")]
+tmax_data <- unique(tmax_data)
+tmax_data$value[tmax_data$value > 500] <- NA
+tmax_data$value[tmax_data$value < -300] <- NA
+
+## Creates a continuous sequence of days.
+start <- min(tmax_data$date)
+end <- max(tmax_data$date)
+days <- data.frame(date = seq(start, end, by = "day"))
+
+tmax_wide <- dcast(tmax_data, date ~ station, value.var = "value")
+dim(tmax_wide)
+
+## Eliminates all values more than 30C from the median.
+tmax_median <- apply(tmax_wide[, 2:dim(tmax_wide)[2]], MARGIN = 1, FUN = median, na.rm = T)
+for (i in 2:dim(tmax_wide)[2]) {
+  diff <- abs(tmax_wide[, i] - tmax_median)
+  out <- which(diff > 300)
+  out2 <- which(diff < -300)
+  tmax_wide[out, i] <- NA
+  tmax_wide[out2, i] <- NA
+}
+
+##TMIN cleaning.
+tmin_data <- tmin_data[,c("date","station","value")]
+tmin_data <- unique(tmin_data)
+tmin_data$value[tmin_data$value > 500] <- NA
+tmin_data$value[tmin_data$value < -300] <- NA
+
+## Creates a continuous sequence of days.
+start <- min(tmin_data$date)
+end <- max(tmin_data$date)
+days <- data.frame(date = seq(start, end, by = "day"))
+
+tmin_wide <- dcast(tmin_data, date ~ station, value.var = "value")
+dim(tmin_wide)
+
+## Eliminates all values more than 30C from the median.
+tmin_median <- apply(tmin_wide[, 2:dim(tmin_wide)[2]], MARGIN = 1, FUN = median, na.rm = T)
+for (i in 2:dim(tmin_wide)[2]) {
+  diff <- abs(tmin_wide[, i] - tmin_median)
+  out <- which(diff > 300)
+  out2 <- which(diff < -300)
+  tmin_wide[out, i] <- NA
+  tmin_wide[out2, i] <- NA
+}
+
+##PRCP cleaning.
+prcp_data <- prcp_data[,c("date","station","value")]
+prcp_data <- unique(prcp_data)
+
+## Creates a continuous sequence of days.
+start <- min(prcp_data$date)
+end <- max(prcp_data$date)
+days <- data.frame(date = seq(start, end, by = "day"))
+
+prcp_wide <- dcast(prcp_data, date ~ station, value.var = "value")
+dim(prcp_wide)
+
+## Eliminates all values more than 300mm from the median.
+prcp_median <- apply(prcp_wide[, 2:dim(prcp_wide)[2]], MARGIN = 1, FUN = median, na.rm = T)
+for (i in 2:dim(prcp_wide)[2]) {
+  diff <- abs(prcp_wide[, i] - prcp_median)
+  out <- which(diff > 300)
+  out2 <- which(diff < -300)
+  prcp_wide[out, i] <- NA
+  prcp_wide[out2, i] <- NA
+}
+
+## Binds everything together and writes to disk.
+colnames(tmax_wide) <- c("date",paste("TMAX", colnames(tmax_wide)[-1], sep = "_"))
+colnames(tmin_wide) <- c("date",paste("TMIN", colnames(tmin_wide)[-1], sep = "_"))
+colnames(prcp_wide) <- c("date",paste("PRCP", colnames(prcp_wide)[-1], sep = "_"))
+
+recentdat_wide <- data.frame(cbind(tmax_wide, tmin_wide[,-1], prcp_wide[,-1]))
+write.csv(recentdat_wide,"tmax_2013_2015_wide.csv",row.names=FALSE)
+
 
 #### Brings in and cleans the historical station data.####
 statdat <- read.csv("station_data_50km_1981_2013.csv")
@@ -162,9 +253,23 @@ for (i in 2:dim(prcp_wide)[2]) {
 }
 
 ## Binds everything together and writes to disk.
-colnames(tmax_wide) <- paste("TMAX", colnames(tmax_wide), sep = "_")
-colnames(tmin_wide) <- paste("TMIN", colnames(tmin_wide), sep = "_")
-colnames(prcp_wide) <- paste("PRCP", colnames(prcp_wide), sep = "_")
+colnames(tmax_wide) <- c("date",paste("TMAX", colnames(tmax_wide)[-1], sep = "_"))
+colnames(tmin_wide) <- c("date",paste("TMIN", colnames(tmin_wide)[-1], sep = "_"))
+colnames(prcp_wide) <- c("date",paste("PRCP", colnames(prcp_wide)[-1], sep = "_"))
 
-alldat_wide <- data.frame(cbind(tmax_wide, tmin_wide, prcp_wide))
-write.csv(alldat_wide, "stationdat_cleaned_1981_2013.csv") 
+alldat_wide <- data.frame(cbind(tmax_wide, tmin_wide[,-1], prcp_wide[,-1]))
+write.csv(alldat_wide, "stationdat_cleaned_1981_2013.csv")
+
+##Joins recent with older data.
+hist_recent_wide <- merge(alldat_wide,recentdat_wide,all=TRUE)
+write.csv(hist_recent_wide,"GHCN_daily_1981_2015.csv",row.names=FALSE)
+
+##Plots data.
+start <- as.POSIXct("2001-10-01")
+end <- as.POSIXct("2001-12-07")
+plot(hist_recent_wide$date,hist_recent_wide$TMIN_GHCND.USC00454764,type="l",xlim=c(start,end))
+points(hist_recent_wide$date,hist_recent_wide$TMIN_GHCND.USC00455224,type="l",col=2)
+points(hist_recent_wide$date,hist_recent_wide$TMIN_GHCND.USC00455704,type="l",col=3)
+points(hist_recent_wide$date,hist_recent_wide$TMIN_GHCND.USC00456262,type="l",col=4)
+points(hist_recent_wide$date,hist_recent_wide$TMIN_GHCND.USC00456896,type="l",col=5)
+points(hist_recent_wide$date,hist_recent_wide$TMIN_GHCND.USC00456898,type="l",col=6)

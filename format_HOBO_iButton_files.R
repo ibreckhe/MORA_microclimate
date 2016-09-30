@@ -19,7 +19,9 @@
 ## name the working directories
 
 # name the working directories with the .csv files you want to process.
-input.WorkingDirectories <- c("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2012-13",
+input.WorkingDirectories <- c("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2014-15",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2013-14",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2012-13",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/ibuttondata2012",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2011-12/HOBOdata2012",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/Elli/temperature sensors/2010-11/dormant season",
@@ -59,6 +61,9 @@ input.WorkingDirectories <- c("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Da
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2014/Wonderland 2014",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Soil Hobo (1st stand visit)",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Air Hobo (1st stand visit)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Soil HOBO (summer download)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Air HOBO (summer download)",
+                              "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/2015/Wonderland Trail 2015",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2013",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2012",
                               "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/JHRL/Wonderland/2011",
@@ -74,9 +79,9 @@ input.WorkingDirectories <- c("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Da
 output.WorkingDirectory <-  "~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/compiled2"
 
 # prefix for output files. This should be a string that identifies the source data. e.g. ("Ford_HOBO_ibutton")
-output.Prefixes <- c(rep("FordTheo",6),
+output.Prefixes <- c(rep("FordTheo",8),
                      rep("Ettinger",8),
-                     rep("JHRL",32),
+                     rep("JHRL",35),
                      rep("Lundquist",1),
                      rep("Breckheimer",4))
 
@@ -168,8 +173,8 @@ formatMicro <- function(CSV_FILE) {
             if (dim(file)[2] == 2) {
                 file = file
             }
-            if (dim(file)[2] == 3) {
-                file <- file[, -2]  # remove the second column (unit)
+            if (dim(file)[2] >= 3) {
+                file <- file[, -2]  # remove the second column (unit), and any other columns
             }
             
             light.fill <- array("", dim = c(dim(file)[1], 1))  # make a vector of NAs to fill the light column (ibuttons don't record light)

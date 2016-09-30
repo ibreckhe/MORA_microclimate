@@ -21,6 +21,7 @@ fsites$DESC[fsites$DESC==""] <- NA
 fsites$DESC <- as.factor(as.character(fsites$DESC))
 fsites$PLOT <- as.factor(paste(fsites$SITE_NAME,fsites$PLOT_NO,sep=" "))
 
+
 ####Munges data ####
 quantfun <- function(x) {c(CIT_mean=mean(x),
                            CIT_sd=sd(x),
@@ -254,4 +255,32 @@ par(mfrow=c(1,1))
 plot_cit_jags_out(fsites_CIT_all,out2,elev_all,cit_all,cair_snow_cat_all,
                   color_pal= c(rgb(0,0,0,0),"purple",rgb(0,0,0,0),"orange"))
 dev.off()
+
+####Looks at the relationship between estimated MAT and the CIT upper bound.####
+pdf("../results/CIT_thresh_MAT.pdf",width=4.5,height=4.25)
+par(mfrow=c(1,1),mar=c(4,4,2,2))
+plot(fsites_CIT_all$MAT_c,fsites_CIT_all$CIT_upr.97.5.,
+     xlab="Eestimated Mean Annual Temperature (C)",ylab="Community Upper Threshold MAT")
+abline(0,1,lty=2)
+dev.off()
+
+##Calculates the Community Climate Resistance
+fsites_CIT_all$CCR <- fsites_CIT_all$CIT_upr.97.5. - fsites_CIT_all$MAT_c
+
+##Plots CCR by covariates
+pdf("../results/CCR_cair_Franklin.pdf",width=4.5,height=4)
+ggplot(data=fsites_CIT_all)+
+  geom_boxplot(aes(x=cair_cat_all,y=CCR))+
+#  facet_wrap(facets=~COMM_NAME)+
+  theme_bw()
+dev.off()
+
+####Best model predicting CCR
+ccr_mod <- lm(CCR~MORA_coldair_index+MORA_elev_3m+I(MORA_elev_3m^2)+
+                utmy+MORA_snow_pred_2013_3m_parkbound_est,data=fsites_CIT_all)
+summary(ccr_mod)
+
+####Is this because climate niches are narrower or closer together?
+
+
 

@@ -313,7 +313,7 @@ dev.off()
 ## Creates vectors of sites and hours
 sites <- unique(unlist(sapply(interp_series,'[[',"code")))
 hours_all <- seq(as.POSIXct("2006-9-1 01:00:00",tz="Etc/GMT-7"),
-                 as.POSIXct("2015-9-1 23:00:00"),by="hour")
+                 as.POSIXct("2015-10-1 23:00:00"),by="hour")
 empty_xts <- xts(rep(NA,length(hours_all)),order.by=hours_all)
 
 ## Orders data list by minimum date.
@@ -362,7 +362,7 @@ names(site_series_tavg) <- sites
 
 ## Puts everything in a data frame.
 days_all <- seq(as.POSIXct("2006-9-1 23:00:00",tz="Etc/GMT-7"),
-                 as.POSIXct("2015-9-1 23:00:00"),by="day")
+                 as.POSIXct("2015-10-1 23:00:00"),by="day")
 alldat_tmax <- data.frame(DATE=as.Date(days_all))
 for (i in 1:length(site_series_tmax)){
   alldat_tmax <- cbind(alldat_tmax,data.frame(round(site_series_tmax[[i]],digits=3)))
@@ -430,7 +430,7 @@ mean_tmin <- apply(alldat_tmin[,-1],FUN=function(x) mean(x,na.rm=TRUE),MARGIN=1)
 mean_tavg <- apply(alldat_tavg[,-1],FUN=function(x) mean(x,na.rm=TRUE),MARGIN=1)
 
 ## gets metadata by site.
-metadata <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/sensor_locations_updated_7-31-2015.csv")
+metadata <- read.csv("~/Dropbox/Lab/EcoForecasting_SDD_Phenology (1)/Data&Analysis/Microclimate/raw/sensor_locations_updated_10-12-2015.csv")
 sites <- unique(unlist(sapply(hourly_series,'[[',"code")))
 metadata_merged <- merge(data.frame(sites=sites),metadata,by.x="sites",
                          by.y="combined_1",keep.x=TRUE)[,1:7]
@@ -478,5 +478,5 @@ metadata_covars$relev_243m <- metadata_covars$elev - metadata_covars$elev_243m
 metadata_covars$relev_729m <- metadata_covars$elev - metadata_covars$elev_729m
 
 ## Writes the metadata to disk.
-write.csv(metadata_covars@data,"site_metadata.csv",row.names=FALSE)
+write.csv(metadata_covars@data,"airtemp_site_metadata_2015.csv",row.names=FALSE)
 

@@ -6,7 +6,6 @@
 antilogit <- function(x){exp(x)/(1+exp(x))}
 logit <- function(x){log(x/(1-x))}
 
-
 # Function to classify the observations into "successes" and 
 # "failures" based on the value of a factor or a character vector.
 # The function returns a data frame identical to the input, but with
